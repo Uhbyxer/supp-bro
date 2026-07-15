@@ -11,3 +11,21 @@ Support engineers often need to understand more than the ticket itself: which fe
 - Suggest likely troubleshooting paths based on known product information.
 - Reduce repeated manual searching across docs, tickets, chats, and project history.
 - Improve handoffs between support, engineering, product, and customer-facing teams.
+
+## Setup
+
+This project uses Python 3.11, a local virtual environment, `pip`, and `make`.
+
+Run the setup command:
+
+```bash
+make setup
+```
+
+The command creates `.venv`, upgrades `pip`, and installs dependencies from `requirements.txt`.
+
+Activate the virtual environment before running Python commands:
+
+```bash
+source .venv/bin/activate
+```
