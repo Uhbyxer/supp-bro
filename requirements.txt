@@ -5,3 +5,4 @@ faiss-cpu==1.8.0.post1
 numpy==1.26.4
 openai>=1.80.0
 langgraph>=1.0.0
+python-slugify==8.0.4

@@ -18,10 +18,11 @@ And produces:
 """
 
 import csv
-import json
 import re
 from pathlib import Path
 from typing import Any
+
+from jsonl_io import save_jsonl
 
 RAW_DIR = Path("data/hw1/raw")
 PROCESSED_DIR = Path("data/hw1/processed")
@@ -188,16 +189,6 @@ def load_raw_sources(raw_dir: Path) -> list[dict[str, Any]]:
         else:
             print(f"Warning: unsupported file type skipped: {file_path}")
     return documents
-
-
-def save_jsonl(records: list[dict[str, Any]], output_path: Path) -> None:
-    """
-    Save records in JSONL format (one JSON object per line).
-    """
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8") as output_file:
-        for record in records:
-            output_file.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
 def main() -> None:
