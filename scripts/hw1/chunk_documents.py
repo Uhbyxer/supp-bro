@@ -131,6 +131,23 @@ def build_chunk_metadata(
     return metadata
 
 
+def add_chunk_navigation_metadata(
+    chunks: list[dict[str, Any]],
+    root_chunk_id: str,
+) -> None:
+    """
+    Add same-document navigation links to each chunk metadata object.
+    """
+    for index, chunk in enumerate(chunks):
+        chunk["metadata"]["prev_chunk_id"] = (
+            chunks[index - 1]["chunk_id"] if index > 0 else None
+        )
+        chunk["metadata"]["next_chunk_id"] = (
+            chunks[index + 1]["chunk_id"] if index < len(chunks) - 1 else None
+        )
+        chunk["metadata"]["root_chunk_id"] = root_chunk_id
+
+
 def chunk_document(document: dict[str, Any]) -> list[dict[str, Any]]:
     """
     Convert one normalized document into section chunks with Overview overlap.
@@ -170,6 +187,8 @@ def chunk_document(document: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
 
+    root_chunk_id = f"{document_id}:{snake_case(overview_section['title'])}"
+    add_chunk_navigation_metadata(chunks, root_chunk_id)
     return chunks
 
 
