@@ -100,6 +100,9 @@ def read_asciidoc_file(file_path: Path) -> dict[str, Any]:
     raw_text = file_path.read_text(encoding="utf-8")
     text = normalize_asciidoc(raw_text)
     title = extract_asciidoc_title(text) or file_path.stem.replace("_", " ").title()
+
+    # TODO make metadata not hardcoded
+
     return {
         "document_id": file_path.stem,
         "source_file": str(file_path),
@@ -108,7 +111,8 @@ def read_asciidoc_file(file_path: Path) -> dict[str, Any]:
         "text": text,
         "metadata": {
             "language": "en",
-            "domain": "hr",
+            "source": "documentation",
+            "feature": "configuration",
             "document_type": "policy",
         },
     }
