@@ -19,12 +19,16 @@ And produces:
 
 import csv
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 RAW_DIR = Path("data/hw1/raw")
 PROCESSED_DIR = Path("data/hw1/processed")
 OUTPUT_PATH = PROCESSED_DIR / "normalized_documents.jsonl"
+ASCIIDOC_ATTRIBUTES = {
+    "prodname": "Debezium",
+}
 
 
 def extract_markdown_title(text: str) -> str | None:
@@ -49,11 +53,52 @@ def extract_asciidoc_title(text: str) -> str | None:
     return None
 
 
+def normalize_asciidoc(text: str) -> str:
+    """
+    Resolve the limited AsciiDoc constructs used in the demo sources.
+    """
+    output_lines: list[str] = []
+    include_stack: list[bool] = []
+
+    for line in text.splitlines():
+        stripped_line = line.strip()
+
+        if stripped_line.startswith("ifdef::") and stripped_line.endswith("[]"):
+            attribute = stripped_line[len("ifdef::") : -2]
+            include_stack.append(attribute == "community")
+            continue
+
+        if stripped_line.startswith("endif::") and stripped_line.endswith("[]"):
+            if include_stack:
+                include_stack.pop()
+            continue
+
+        if include_stack and not all(include_stack):
+            continue
+
+        if stripped_line.startswith(":"):
+            continue
+
+        if stripped_line == "toc::[]":
+            continue
+
+        normalized_line = line
+        for attribute, value in ASCIIDOC_ATTRIBUTES.items():
+            normalized_line = normalized_line.replace(f"{{{attribute}}}", value)
+
+        output_lines.append(normalized_line)
+
+    normalized_text = "\n".join(output_lines)
+    normalized_text = re.sub(r"\n{3,}", "\n\n", normalized_text).strip()
+    return normalized_text
+
+
 def read_asciidoc_file(file_path: Path) -> dict[str, Any]:
     """
     Read an AsciiDoc file and convert it into a normalized document object.
     """
-    text = file_path.read_text(encoding="utf-8")
+    raw_text = file_path.read_text(encoding="utf-8")
+    text = normalize_asciidoc(raw_text)
     title = extract_asciidoc_title(text) or file_path.stem.replace("_", " ").title()
     return {
         "document_id": file_path.stem,
