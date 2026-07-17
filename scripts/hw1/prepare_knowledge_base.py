@@ -1,5 +1,5 @@
 """
-Lesson 3 Demo 1: Normalize source documents.
+HW 1: Prepare KB.
 
 Run from the project root:
     python scripts/hw1/prepare_knowledge_base.py
