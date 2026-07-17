@@ -22,6 +22,7 @@ PROCESSED_DIR = Path("data/hw1/processed")
 INPUT_PATH = PROCESSED_DIR / "normalized_documents.jsonl"
 OUTPUT_PATH = PROCESSED_DIR / "chunks.jsonl"
 SECTION_HEADING_PATTERN = re.compile(r"^==(?!=)\s+(.+?)\s*$")
+OVERVIEW_OVERLAP_LIMIT = 1000
 
 
 def snake_case(value: str) -> str:
@@ -80,6 +81,36 @@ def find_overview_section(
     raise ValueError(f"Document {document_id} does not contain a top-level Overview section")
 
 
+def split_section_paragraphs(text: str) -> list[str]:
+    """
+    Split section text into paragraphs, keeping the section heading with the first body paragraph.
+    """
+    paragraphs = [
+        paragraph.strip() for paragraph in re.split(r"\n\s*\n", text) if paragraph.strip()
+    ]
+    if len(paragraphs) > 1 and SECTION_HEADING_PATTERN.match(paragraphs[0]):
+        return [f"{paragraphs[0]}\n\n{paragraphs[1]}", *paragraphs[2:]]
+
+    return paragraphs
+
+
+def build_overview_overlap(
+    overview_paragraphs: list[str],
+    section_text: str,
+) -> str:
+    """
+    Select Overview paragraphs until overlap plus section text reaches the limit.
+    """
+    selected_paragraphs: list[str] = []
+    for paragraph in overview_paragraphs:
+        selected_paragraphs.append(paragraph)
+        overlap_text = "\n\n".join(selected_paragraphs)
+        if len(f"{overlap_text}\n\n{section_text}") >= OVERVIEW_OVERLAP_LIMIT:
+            break
+
+    return "\n\n".join(selected_paragraphs)
+
+
 def build_chunk_metadata(
     document: dict[str, Any],
     section_title: str,
@@ -107,6 +138,7 @@ def chunk_document(document: dict[str, Any]) -> list[dict[str, Any]]:
     document_id = document["document_id"]
     sections = split_top_level_sections(document["text"])
     overview_section = find_overview_section(sections, document_id)
+    overview_paragraphs = split_section_paragraphs(overview_section["text"])
     chunks: list[dict[str, Any]] = []
 
     for chunk_index, section in enumerate(sections, start=1):
@@ -120,7 +152,11 @@ def chunk_document(document: dict[str, Any]) -> list[dict[str, Any]]:
         if section_title == "Overview":
             chunk_text = section["text"]
         else:
-            chunk_text = f"{overview_section['text']}\n\n{section['text']}"
+            overview_overlap = build_overview_overlap(
+                overview_paragraphs,
+                section["text"],
+            )
+            chunk_text = f"{overview_overlap}\n\n{section['text']}"
 
         chunks.append(
             {
