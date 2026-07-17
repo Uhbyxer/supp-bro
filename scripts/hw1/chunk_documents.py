@@ -81,7 +81,9 @@ def find_overview_section(
 
 
 def build_chunk_metadata(
-    document: dict[str, Any], section_title: str, chunk_index: int
+    document: dict[str, Any],
+    section_title: str,
+    chunk_index: int,
 ) -> dict[str, Any]:
     """
     Build chunk metadata from the parent document and section data.
@@ -124,7 +126,11 @@ def chunk_document(document: dict[str, Any]) -> list[dict[str, Any]]:
             {
                 "chunk_id": f"{document_id}:{section_key}",
                 "text": chunk_text,
-                "metadata": build_chunk_metadata(document, section_title, chunk_index),
+                "metadata": build_chunk_metadata(
+                    document,
+                    section_title,
+                    chunk_index,
+                ),
             }
         )
 
@@ -159,6 +165,10 @@ def main() -> None:
     print(f"Normalized documents: {len(documents)}")
     print(f"Chunks: {len(chunks)}")
     print(f"Output file: {OUTPUT_PATH}")
+    print()
+    print("Chunk sizes:")
+    for chunk in chunks:
+        print(f"- {chunk['chunk_id']}: {len(chunk['text'])} symbols")
 
 
 if __name__ == "__main__":
