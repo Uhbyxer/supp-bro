@@ -29,3 +29,16 @@ Activate the virtual environment before running Python commands:
 ```bash
 source .venv/bin/activate
 ```
+
+Downloading GitHub project issues requires the GitHub CLI. On macOS, install it with:
+
+```bash
+brew install gh
+```
+
+Download Debezium project issues into `data/hw1/raw/issues`:
+
+```bash
+gh auth login
+make download-issues
+```
