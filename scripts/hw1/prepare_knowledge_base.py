@@ -12,6 +12,7 @@ This script reads:
     - AsciiDoc files
     - Markdown files
     - CSV files
+    - GitHub issue JSONL files
 
 And produces:
     data/hw1/processed/normalized_documents.jsonl
@@ -22,9 +23,11 @@ import re
 from pathlib import Path
 from typing import Any
 
-from jsonl_io import save_jsonl
+from jsonl_io import load_jsonl, save_jsonl
 
 RAW_DIR = Path("data/hw1/raw")
+ISSUES_PATH = RAW_DIR / "issues" / "debezium-project-5.jsonl"
+ISSUE_LIMIT = 5
 PROCESSED_DIR = Path("data/hw1/processed")
 OUTPUT_PATH = PROCESSED_DIR / "normalized_documents.jsonl"
 ASCIIDOC_ATTRIBUTES = {
@@ -188,6 +191,38 @@ def read_csv_file(file_path: Path) -> dict[str, Any]:
     }
 
 
+def read_issue_documents(file_path: Path) -> list[dict[str, Any]]:
+    """
+    Read GitHub issues and convert the first records into normalized documents.
+    """
+    issues = load_jsonl(file_path)
+    documents: list[dict[str, Any]] = []
+
+    for issue in issues[:ISSUE_LIMIT]:
+        repository_name = issue["repository_name"]
+        issue_number = issue["number"]
+        title = issue["title"]
+        body = issue.get("body") or ""
+        text = f"# {title}\n\n{body}".strip()
+
+        documents.append(
+            {
+                "document_id": f"issues:{repository_name}:{issue_number}",
+                "source_file": str(file_path),
+                "source_type": "markdown",
+                "title": title,
+                "text": text,
+                "metadata": {
+                    "language": "en",
+                    "source": "issues",
+                    "feature": repository_name,
+                },
+            }
+        )
+
+    return documents
+
+
 def load_raw_sources(raw_dir: Path) -> list[dict[str, Any]]:
     """
     Load supported source files from the raw directory.
@@ -195,6 +230,7 @@ def load_raw_sources(raw_dir: Path) -> list[dict[str, Any]]:
         - .adoc
         - .md
         - .csv
+        - configured GitHub issue .jsonl
     """
     documents: list[dict[str, Any]] = []
     for file_path in sorted(path for path in raw_dir.rglob("*") if path.is_file()):
@@ -204,6 +240,8 @@ def load_raw_sources(raw_dir: Path) -> list[dict[str, Any]]:
             documents.append(read_markdown_file(file_path))
         elif file_path.suffix.lower() == ".csv":
             documents.append(read_csv_file(file_path))
+        elif file_path == ISSUES_PATH:
+            documents.extend(read_issue_documents(file_path))
         else:
             print(f"Warning: unsupported file type skipped: {file_path}")
     return documents
