@@ -94,6 +94,25 @@ def normalize_asciidoc(text: str) -> str:
     return normalized_text
 
 
+def build_raw_metadata(file_path: Path) -> dict[str, str]:
+    """
+    Derive source metadata from the raw input directory layout.
+    """
+    relative_path = file_path.relative_to(RAW_DIR)
+    if len(relative_path.parts) < 3:
+        raise ValueError(
+            f"Raw file must be under {RAW_DIR}/<source>/<feature>/: {file_path}"
+        )
+
+    source = relative_path.parts[0]
+    feature = relative_path.parts[1]
+    return {
+        "document_id": f"{source}:{feature}:{file_path.stem}",
+        "source": source,
+        "feature": feature,
+    }
+
+
 def read_asciidoc_file(file_path: Path) -> dict[str, Any]:
     """
     Read an AsciiDoc file and convert it into a normalized document object.
@@ -101,20 +120,18 @@ def read_asciidoc_file(file_path: Path) -> dict[str, Any]:
     raw_text = file_path.read_text(encoding="utf-8")
     text = normalize_asciidoc(raw_text)
     title = extract_asciidoc_title(text) or file_path.stem.replace("_", " ").title()
-
-    # TODO make metadata not hardcoded
+    raw_metadata = build_raw_metadata(file_path)
 
     return {
-        "document_id": file_path.stem,
+        "document_id": raw_metadata["document_id"],
         "source_file": str(file_path),
         "source_type": "asciidoc",
         "title": title,
         "text": text,
         "metadata": {
             "language": "en",
-            "source": "documentation",
-            "feature": "configuration",
-            "document_type": "policy",
+            "source": raw_metadata["source"],
+            "feature": raw_metadata["feature"],
         },
     }
 
@@ -125,16 +142,17 @@ def read_markdown_file(file_path: Path) -> dict[str, Any]:
     """
     text = file_path.read_text(encoding="utf-8")
     title = extract_markdown_title(text) or file_path.stem.replace("_", " ").title()
+    raw_metadata = build_raw_metadata(file_path)
     return {
-        "document_id": file_path.stem,
+        "document_id": raw_metadata["document_id"],
         "source_file": str(file_path),
         "source_type": "markdown",
         "title": title,
         "text": text,
         "metadata": {
             "language": "en",
-            "domain": "hr",
-            "document_type": "policy",
+            "source": raw_metadata["source"],
+            "feature": raw_metadata["feature"],
         },
     }
 
@@ -154,18 +172,18 @@ def read_csv_file(file_path: Path) -> dict[str, Any]:
         row_text = "; ".join(f"{key}: {value}" for key, value in row.items())
         text_lines.append(f"Row {index}: {row_text}")
     text = "\n".join(text_lines)
+    raw_metadata = build_raw_metadata(file_path)
 
     return {
-        "document_id": file_path.stem,
+        "document_id": raw_metadata["document_id"],
         "source_file": str(file_path),
         "source_type": "csv",
         "title": file_path.stem.replace("_", " ").title(),
         "text": text,
         "metadata": {
             "language": "en",
-            "domain": "hr",
-            "document_type": "policy_table",
-            "row_count": len(rows),
+            "source": raw_metadata["source"],
+            "feature": raw_metadata["feature"],
         },
     }
 
@@ -179,7 +197,7 @@ def load_raw_sources(raw_dir: Path) -> list[dict[str, Any]]:
         - .csv
     """
     documents: list[dict[str, Any]] = []
-    for file_path in sorted(raw_dir.iterdir()):
+    for file_path in sorted(path for path in raw_dir.rglob("*") if path.is_file()):
         if file_path.suffix.lower() == ".adoc":
             documents.append(read_asciidoc_file(file_path))
         elif file_path.suffix.lower() == ".md":

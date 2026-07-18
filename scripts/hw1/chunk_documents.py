@@ -8,7 +8,7 @@ This script reads:
     data/hw1/processed/normalized_documents.jsonl
 
 And produces:
-    data/hw1/processed/chunks.jsonl
+    data/hw1/processed/chunks_large.jsonl
 """
 
 import re
@@ -20,9 +20,10 @@ from slugify import slugify
 
 PROCESSED_DIR = Path("data/hw1/processed")
 INPUT_PATH = PROCESSED_DIR / "normalized_documents.jsonl"
-OUTPUT_PATH = PROCESSED_DIR / "chunks.jsonl"
+OUTPUT_PATH = PROCESSED_DIR / "chunks_large.jsonl"
 SECTION_HEADING_PATTERN = re.compile(r"^==(?!=)\s+(.+?)\s*$")
 OVERVIEW_OVERLAP_LIMIT = 1000
+CHUNK_SIZE = "large"
 
 
 def snake_case(value: str) -> str:
@@ -113,7 +114,6 @@ def build_overview_overlap(
 
 def build_chunk_metadata(
     document: dict[str, Any],
-    section_title: str,
     chunk_index: int,
 ) -> dict[str, Any]:
     """
@@ -126,7 +126,6 @@ def build_chunk_metadata(
         "title": document["title"],
     }
     metadata.update(document.get("metadata", {}))
-    metadata["section"] = section_title
     metadata["chunk_index"] = chunk_index
     return metadata
 
@@ -178,10 +177,10 @@ def chunk_document(document: dict[str, Any]) -> list[dict[str, Any]]:
         chunks.append(
             {
                 "chunk_id": f"{document_id}:{section_key}",
+                "size": CHUNK_SIZE,
                 "text": chunk_text,
                 "metadata": build_chunk_metadata(
                     document,
-                    section_title,
                     chunk_index,
                 ),
             }
