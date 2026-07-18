@@ -8,7 +8,7 @@ This script reads:
     data/hw1/processed/normalized_documents.jsonl
 
 And produces:
-    data/hw1/processed/chunks_large.jsonl
+    data/hw1/processed/chunks_medium.json
 """
 
 import re
@@ -20,10 +20,12 @@ from slugify import slugify
 
 PROCESSED_DIR = Path("data/hw1/processed")
 INPUT_PATH = PROCESSED_DIR / "normalized_documents.jsonl"
-OUTPUT_PATH = PROCESSED_DIR / "chunks_large.jsonl"
+OUTPUT_PATH = PROCESSED_DIR / "chunks_medium.json"
 SECTION_HEADING_PATTERN = re.compile(r"^==(?!=)\s+(.+?)\s*$")
 OVERVIEW_OVERLAP_LIMIT = 1000
-CHUNK_SIZE = "large"
+ISSUE_CHUNK_CHAR_LIMIT = 700
+ISSUE_CHUNK_OVERLAP = 150
+CHUNK_SIZE = "medium"
 
 
 def snake_case(value: str) -> str:
@@ -147,9 +149,45 @@ def add_chunk_navigation_metadata(
         chunk["metadata"]["root_chunk_id"] = root_chunk_id
 
 
-def chunk_document(document: dict[str, Any]) -> list[dict[str, Any]]:
+def normalize_whitespace(text: str) -> str:
     """
-    Convert one normalized document into section chunks with Overview overlap.
+    Normalize whitespace while keeping readable section boundaries.
+    """
+    lines = [line.strip() for line in text.splitlines()]
+    non_empty_lines = [line for line in lines if line]
+    return "\n".join(non_empty_lines)
+
+
+def split_text_with_overlap(
+    text: str,
+    chunk_size: int = ISSUE_CHUNK_CHAR_LIMIT,
+    overlap: int = ISSUE_CHUNK_OVERLAP,
+) -> list[str]:
+    """
+    Split text into chunks with character overlap.
+    """
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be greater than 0")
+    if overlap >= chunk_size:
+        raise ValueError("overlap must be smaller than chunk_size")
+
+    clean_text = normalize_whitespace(text)
+    chunks: list[str] = []
+    start = 0
+
+    while start < len(clean_text):
+        end = start + chunk_size
+        chunk = clean_text[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+        start = end - overlap
+
+    return chunks
+
+
+def chunk_page_document(document: dict[str, Any]) -> list[dict[str, Any]]:
+    """
+    Convert one page document into section chunks with Overview overlap.
     """
     document_id = document["document_id"]
     sections = split_top_level_sections(document["text"])
@@ -189,6 +227,48 @@ def chunk_document(document: dict[str, Any]) -> list[dict[str, Any]]:
     root_chunk_id = f"{document_id}:{snake_case(overview_section['title'])}"
     add_chunk_navigation_metadata(chunks, root_chunk_id)
     return chunks
+
+
+def chunk_issue_document(document: dict[str, Any]) -> list[dict[str, Any]]:
+    """
+    Convert one issue document into overlapping medium chunks.
+    """
+    document_id = document["document_id"]
+    text_chunks = split_text_with_overlap(document["text"])
+    chunks: list[dict[str, Any]] = []
+
+    for chunk_index, chunk_text in enumerate(text_chunks, start=1):
+        chunks.append(
+            {
+                "chunk_id": f"{document_id}:chunk_{chunk_index:03d}",
+                "size": CHUNK_SIZE,
+                "text": chunk_text,
+                "metadata": build_chunk_metadata(
+                    document,
+                    chunk_index,
+                ),
+            }
+        )
+
+    if chunks:
+        add_chunk_navigation_metadata(chunks, chunks[0]["chunk_id"])
+
+    return chunks
+
+
+def chunk_document(document: dict[str, Any]) -> list[dict[str, Any]]:
+    """
+    Convert one normalized document into source-specific chunks.
+    """
+    source = document.get("metadata", {}).get("source")
+    if source == "pages":
+        return chunk_page_document(document)
+    if source == "issues":
+        return chunk_issue_document(document)
+
+    raise ValueError(
+        f"Document {document['document_id']} has unsupported metadata.source: {source}"
+    )
 
 
 def chunk_documents(documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
