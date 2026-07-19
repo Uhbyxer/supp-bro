@@ -169,3 +169,86 @@ python scripts/hw1/chunk_documents.py
 - `data/hw1/processed/normalized_documents.jsonl` - єдиний формат документів;
 - `data/hw1/processed/chunks_large.jsonl` - large chunks з документації Debezium;
 - `data/hw1/processed/chunks_medium.json` - medium chunks з GitHub issues для наступного етапу RAG.
+
+## Висновок
+
+В роботі використовується дві різні chunking-стратегії залежно від `metadata.source`.
+Для `pages` враховується структура документації: документ ділиться за AsciiDoc-секціями, а секція `Overview` додається як контекст до інших chunks.
+Для `issues` використовується простіша стратегія: фіксований розмір chunk по 700 символів з overlap 150 символів.
+
+Це дає різну поведінку для різних типів знань:
+
+- page chunks зберігають структуру документа і краще передають контекст секції;
+- issue chunks мають стабільний розмір і простіше контролюються для індексації;
+- page chunks іноді виходять дуже великими, бо окремі секції документації можуть бути довгими;
+- issue chunks не враховують внутрішню структуру issue, наприклад заголовки, блоки логів або секції bug report.
+
+Що варто покращити:
+
+- для `pages` додати додаткове дробіння великих секцій на менші chunks, зберігаючи прив'язку до батьківської секції і `Overview`;
+- для `issues` зробити структурну стратегію chunking, яка враховує Markdown/Jira-заголовки, блоки коду, логи та типові секції issue, а не тільки фіксований overlap.
+
+Поточні розміри large chunks:
+
+```text
+- pages:configuration:eos:overview: 742 symbols
+- pages:configuration:eos:kafka_connect_exactly_once_support_for_source_connector: 2262 symbols
+- pages:configuration:eos:debezium_connectors_supporting_exactly_once_delivery: 970 symbols
+- pages:configuration:eos:configuration: 1282 symbols
+- pages:configuration:storage:overview: 973 symbols
+- pages:configuration:storage:kafka: 4709 symbols
+- pages:configuration:storage:file: 1861 symbols
+- pages:configuration:storage:memory: 1366 symbols
+- pages:configuration:storage:jdbc: 14008 symbols
+- pages:configuration:storage:redis: 15978 symbols
+- pages:configuration:storage:amazon_s3: 2128 symbols
+- pages:configuration:storage:azure_blob_storage: 2715 symbols
+- pages:configuration:storage:rocketmq: 3118 symbols
+- pages:configuration:storage:chronicle_queue: 4172 symbols
+```
+
+Поточні розміри medium chunks:
+
+```text
+- issues:dbz:1407:chunk_001: 700 symbols
+- issues:dbz:1407:chunk_002: 700 symbols
+- issues:dbz:1407:chunk_003: 700 symbols
+- issues:dbz:1407:chunk_004: 700 symbols
+- issues:dbz:1407:chunk_005: 699 symbols
+- issues:dbz:1407:chunk_006: 700 symbols
+- issues:dbz:1407:chunk_007: 700 symbols
+- issues:dbz:1407:chunk_008: 700 symbols
+- issues:dbz:1407:chunk_009: 700 symbols
+- issues:dbz:1407:chunk_010: 700 symbols
+- issues:dbz:1407:chunk_011: 700 symbols
+- issues:dbz:1407:chunk_012: 234 symbols
+- issues:dbz:11:chunk_001: 87 symbols
+- issues:dbz:4:chunk_001: 699 symbols
+- issues:dbz:4:chunk_002: 700 symbols
+- issues:dbz:4:chunk_003: 700 symbols
+- issues:dbz:4:chunk_004: 700 symbols
+- issues:dbz:4:chunk_005: 700 symbols
+- issues:dbz:4:chunk_006: 332 symbols
+- issues:dbz:3:chunk_001: 700 symbols
+- issues:dbz:3:chunk_002: 700 symbols
+- issues:dbz:3:chunk_003: 699 symbols
+- issues:dbz:3:chunk_004: 700 symbols
+- issues:dbz:3:chunk_005: 699 symbols
+- issues:dbz:3:chunk_006: 699 symbols
+- issues:dbz:3:chunk_007: 700 symbols
+- issues:dbz:3:chunk_008: 700 symbols
+- issues:dbz:3:chunk_009: 700 symbols
+- issues:dbz:3:chunk_010: 700 symbols
+- issues:dbz:3:chunk_011: 699 symbols
+- issues:dbz:3:chunk_012: 149 symbols
+- issues:dbz:73:chunk_001: 700 symbols
+- issues:dbz:73:chunk_002: 700 symbols
+- issues:dbz:73:chunk_003: 700 symbols
+- issues:dbz:73:chunk_004: 700 symbols
+- issues:dbz:73:chunk_005: 700 symbols
+- issues:dbz:73:chunk_006: 700 symbols
+- issues:dbz:73:chunk_007: 700 symbols
+- issues:dbz:73:chunk_008: 700 symbols
+- issues:dbz:73:chunk_009: 698 symbols
+- issues:dbz:73:chunk_010: 283 symbols
+```
