@@ -8,6 +8,7 @@ This script reads:
     data/hw1/processed/normalized_documents.jsonl
 
 And produces:
+    data/hw1/processed/chunks_large.jsonl
     data/hw1/processed/chunks_medium.json
 """
 
@@ -20,12 +21,14 @@ from slugify import slugify
 
 PROCESSED_DIR = Path("data/hw1/processed")
 INPUT_PATH = PROCESSED_DIR / "normalized_documents.jsonl"
-OUTPUT_PATH = PROCESSED_DIR / "chunks_medium.json"
+LARGE_OUTPUT_PATH = PROCESSED_DIR / "chunks_large.jsonl"
+MEDIUM_OUTPUT_PATH = PROCESSED_DIR / "chunks_medium.json"
 SECTION_HEADING_PATTERN = re.compile(r"^==(?!=)\s+(.+?)\s*$")
 OVERVIEW_OVERLAP_LIMIT = 1000
 ISSUE_CHUNK_CHAR_LIMIT = 700
 ISSUE_CHUNK_OVERLAP = 150
-CHUNK_SIZE = "medium"
+PAGE_CHUNK_SIZE = "large"
+ISSUE_CHUNK_SIZE = "medium"
 
 
 def snake_case(value: str) -> str:
@@ -215,7 +218,7 @@ def chunk_page_document(document: dict[str, Any]) -> list[dict[str, Any]]:
         chunks.append(
             {
                 "chunk_id": f"{document_id}:{section_key}",
-                "size": CHUNK_SIZE,
+                "size": PAGE_CHUNK_SIZE,
                 "text": chunk_text,
                 "metadata": build_chunk_metadata(
                     document,
@@ -241,7 +244,7 @@ def chunk_issue_document(document: dict[str, Any]) -> list[dict[str, Any]]:
         chunks.append(
             {
                 "chunk_id": f"{document_id}:chunk_{chunk_index:03d}",
-                "size": CHUNK_SIZE,
+                "size": ISSUE_CHUNK_SIZE,
                 "text": chunk_text,
                 "metadata": build_chunk_metadata(
                     document,
@@ -256,29 +259,33 @@ def chunk_issue_document(document: dict[str, Any]) -> list[dict[str, Any]]:
     return chunks
 
 
-def chunk_document(document: dict[str, Any]) -> list[dict[str, Any]]:
+def chunk_document(document: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
     """
     Convert one normalized document into source-specific chunks.
     """
     source = document.get("metadata", {}).get("source")
     if source == "pages":
-        return chunk_page_document(document)
+        return "large", chunk_page_document(document)
     if source == "issues":
-        return chunk_issue_document(document)
+        return "medium", chunk_issue_document(document)
 
     raise ValueError(
         f"Document {document['document_id']} has unsupported metadata.source: {source}"
     )
 
 
-def chunk_documents(documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def chunk_documents(documents: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     """
     Convert normalized documents into chunks.
     """
-    chunks: list[dict[str, Any]] = []
+    chunks_by_size: dict[str, list[dict[str, Any]]] = {
+        "large": [],
+        "medium": [],
+    }
     for document in documents:
-        chunks.extend(chunk_document(document))
-    return chunks
+        size, chunks = chunk_document(document)
+        chunks_by_size[size].extend(chunks)
+    return chunks_by_size
 
 
 def main() -> None:
@@ -289,19 +296,28 @@ def main() -> None:
         )
 
     documents = load_jsonl(INPUT_PATH)
-    chunks = chunk_documents(documents)
-    save_jsonl(chunks, OUTPUT_PATH)
+    chunks_by_size = chunk_documents(documents)
+    large_chunks = chunks_by_size["large"]
+    medium_chunks = chunks_by_size["medium"]
+    save_jsonl(large_chunks, LARGE_OUTPUT_PATH)
+    save_jsonl(medium_chunks, MEDIUM_OUTPUT_PATH)
 
     print("=" * 80)
     print("LESSON 3 DEMO 2: CHUNK DOCUMENTS")
     print("=" * 80)
     print(f"Input file: {INPUT_PATH}")
     print(f"Normalized documents: {len(documents)}")
-    print(f"Chunks: {len(chunks)}")
-    print(f"Output file: {OUTPUT_PATH}")
+    print(f"Large chunks: {len(large_chunks)}")
+    print(f"Medium chunks: {len(medium_chunks)}")
+    print(f"Large output file: {LARGE_OUTPUT_PATH}")
+    print(f"Medium output file: {MEDIUM_OUTPUT_PATH}")
     print()
-    print("Chunk sizes:")
-    for chunk in chunks:
+    print("Large chunk sizes:")
+    for chunk in large_chunks:
+        print(f"- {chunk['chunk_id']}: {len(chunk['text'])} symbols")
+    print()
+    print("Medium chunk sizes:")
+    for chunk in medium_chunks:
         print(f"- {chunk['chunk_id']}: {len(chunk['text'])} symbols")
 
 

@@ -16,6 +16,7 @@ data/hw1/raw
   -> scripts/hw1/prepare_knowledge_base.py
   -> data/hw1/processed/normalized_documents.jsonl
   -> scripts/hw1/chunk_documents.py
+  -> data/hw1/processed/chunks_large.jsonl
   -> data/hw1/processed/chunks_medium.json
 ```
 
@@ -83,11 +84,11 @@ python scripts/hw1/prepare_knowledge_base.py
 
 ## Chunking документів
 
-`chunk_documents.py` читає `data/hw1/processed/normalized_documents.jsonl` і створює `data/hw1/processed/chunks_medium.json`.
+`chunk_documents.py` читає `data/hw1/processed/normalized_documents.jsonl` і створює два файли: `data/hw1/processed/chunks_large.jsonl` для page chunks і `data/hw1/processed/chunks_medium.json` для issue chunks.
 
 Скрипт використовує різну логіку для різних джерел:
 
-- `metadata.source = "pages"`: документ ділиться за верхньорівневими AsciiDoc-секціями `== ...`; секція `Overview` використовується як кореневий chunk і додається як overlap до інших секцій;
+- `metadata.source = "pages"`: документ ділиться на large chunks за верхньорівневими AsciiDoc-секціями `== ...`; секція `Overview` використовується як кореневий chunk і додається як overlap до інших секцій; результат записується в `chunks_large.jsonl`;
 - `metadata.source = "issues"`: issue ділиться на medium chunks по 700 символів з overlap 150 символів.
 
 Приклад запуску з кореня репозиторію:
@@ -103,7 +104,7 @@ python scripts/hw1/chunk_documents.py
 [
   {
     "chunk_id": "pages:configuration:storage:overview",
-    "size": "medium",
+    "size": "large",
     "text": "== Overview\n\nDebezium supports several ways to store connector state...",
     "metadata": {
       "document_id": "pages:configuration:storage",
@@ -166,4 +167,5 @@ python scripts/hw1/chunk_documents.py
 Очікувані результати:
 
 - `data/hw1/processed/normalized_documents.jsonl` - єдиний формат документів;
-- `data/hw1/processed/chunks_medium.json` - medium chunks для наступного етапу RAG.
+- `data/hw1/processed/chunks_large.jsonl` - large chunks з документації Debezium;
+- `data/hw1/processed/chunks_medium.json` - medium chunks з GitHub issues для наступного етапу RAG.
