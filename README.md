@@ -53,3 +53,7 @@ Download Debezium project issues into `data/hw1/raw/issues`:
 gh auth login
 make download-issues
 ```
+
+## HW1 Knowledge Base
+
+The HW1 data preparation scripts are documented in [scripts/hw1/KnowledgeBase_Readme.md](scripts/hw1/KnowledgeBase_Readme.md). They were created for [HW1_Knowledge_Base.md](https://github.com/Uhbyxer/RAG-1/blob/master/HW1_Knowledge_Base.md) and cover preparing normalized documents and chunks for the knowledge base.
