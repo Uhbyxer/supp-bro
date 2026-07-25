@@ -109,8 +109,8 @@ def print_results(query: str, results: list[dict[str, Any]]) -> None:
         print(f"Chunk ID: {result['chunk_id']}")
         print(f"Source file: {metadata.get('source_file')}")
         print(f"Title: {metadata.get('title')}")
-        print("Text preview:")
-        print(result["text"][:500])
+        print("Text:")
+        print(result["text"])
         print("-" * 80)
 
 
