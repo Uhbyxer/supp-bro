@@ -3,7 +3,7 @@ VENV ?= .venv
 PIP := $(VENV)/bin/pip
 PYTHON_BIN := $(VENV)/bin/python
 
-.PHONY: setup download-issues
+.PHONY: setup download-issues build-index
 setup:
 	$(PYTHON) -m venv $(VENV)
 	$(PYTHON_BIN) -m pip install --upgrade pip
@@ -12,3 +12,6 @@ setup:
 
 download-issues:
 	$(PYTHON_BIN) scripts/hw1/download_project_issues.py
+
+build-index:
+	$(PYTHON_BIN) scripts/hw2/build_index.py
