@@ -1,0 +1,838 @@
+================================================================================
+HW 2: CHECK SEMANTIC SEARCH
+================================================================================
+Embedding model: sentence-transformers/all-MiniLM-L6-v2
+FAISS index: data/hw2/index/faiss.index
+Chunks file: data/hw2/processed/chunks_for_retrieval.jsonl
+Top-k: 5
+
+Query: How should Debezium persist connector offsets and schema history after a restart?
+Top-k: 5
+
+--------------------------------------------------------------------------------
+Retrieved chunks
+--------------------------------------------------------------------------------
+Rank: 1
+Score: 0.7324
+Chunk ID: pages:configuration:storage:overview
+Source file: data/hw1/raw/pages/configuration/storage.adoc
+Title: Storing state of a Debezium connector
+Text preview:
+== Overview
+
+Debezium connectors require persistent storage to preserve their state between restarts.
+All connectors require a mechanism to provide persistent storage for the offsets.
+In addition, connectors such as Db2, MySQL, Oracle,  and SQL Server, require additional storage for their so-called internal schema history, which records changes to table schema in the database.
+
+Offset storage is provided automatically for deployments within the Kafka Connect runtime through one of the following 
+--------------------------------------------------------------------------------
+Rank: 2
+Score: 0.7253
+Chunk ID: pages:configuration:storage:file
+Source file: data/hw1/raw/pages/configuration/storage.adoc
+Title: Storing state of a Debezium connector
+Text preview:
+== Overview
+
+Debezium connectors require persistent storage to preserve their state between restarts.
+All connectors require a mechanism to provide persistent storage for the offsets.
+In addition, connectors such as Db2, MySQL, Oracle,  and SQL Server, require additional storage for their so-called internal schema history, which records changes to table schema in the database.
+
+== File
+
+It's possible to persist the position (offsets) of the connector in a local file on disk. 
+These offsets ensur
+--------------------------------------------------------------------------------
+Rank: 3
+Score: 0.7140
+Chunk ID: pages:configuration:storage:kafka
+Source file: data/hw1/raw/pages/configuration/storage.adoc
+Title: Storing state of a Debezium connector
+Text preview:
+== Overview
+
+Debezium connectors require persistent storage to preserve their state between restarts.
+All connectors require a mechanism to provide persistent storage for the offsets.
+In addition, connectors such as Db2, MySQL, Oracle,  and SQL Server, require additional storage for their so-called internal schema history, which records changes to table schema in the database.
+
+== Kafka
+
+Debezium can use Kafka to store its state, including source offsets and schema history. 
+Connectors implement
+--------------------------------------------------------------------------------
+Rank: 4
+Score: 0.6874
+Chunk ID: pages:configuration:storage:memory
+Source file: data/hw1/raw/pages/configuration/storage.adoc
+Title: Storing state of a Debezium connector
+Text preview:
+== Overview
+
+Debezium connectors require persistent storage to preserve their state between restarts.
+All connectors require a mechanism to provide persistent storage for the offsets.
+In addition, connectors such as Db2, MySQL, Oracle,  and SQL Server, require additional storage for their so-called internal schema history, which records changes to table schema in the database.
+
+== Memory
+
+`MemoryOffsetBackingStore` is a volatile, in-memory store that Debezium Embedded uses to track source offset
+--------------------------------------------------------------------------------
+Rank: 5
+Score: 0.6755
+Chunk ID: pages:configuration:storage:rocketmq
+Source file: data/hw1/raw/pages/configuration/storage.adoc
+Title: Storing state of a Debezium connector
+Text preview:
+== Overview
+
+Debezium connectors require persistent storage to preserve their state between restarts.
+All connectors require a mechanism to provide persistent storage for the offsets.
+In addition, connectors such as Db2, MySQL, Oracle,  and SQL Server, require additional storage for their so-called internal schema history, which records changes to table schema in the database.
+
+== RocketMQ
+
+Debezium can use the `RocketMqSchemaHistory` class to store and retrieve database schema changes in Apache
+--------------------------------------------------------------------------------
+
+Query: Which storage options are suitable for cloud deployments of Debezium state?
+Top-k: 5
+
+--------------------------------------------------------------------------------
+Retrieved chunks
+--------------------------------------------------------------------------------
+Rank: 1
+Score: 0.5903
+Chunk ID: pages:configuration:storage:azure_blob_storage
+Source file: data/hw1/raw/pages/configuration/storage.adoc
+Title: Storing state of a Debezium connector
+Text preview:
+== Overview
+
+Debezium connectors require persistent storage to preserve their state between restarts.
+All connectors require a mechanism to provide persistent storage for the offsets.
+In addition, connectors such as Db2, MySQL, Oracle,  and SQL Server, require additional storage for their so-called internal schema history, which records changes to table schema in the database.
+
+== Azure Blob Storage
+
+Debezium can use the link:https://azure.microsoft.com/en-us/products/storage/blobs[Azure Blob] s
+--------------------------------------------------------------------------------
+Rank: 2
+Score: 0.5703
+Chunk ID: pages:configuration:storage:amazon_s3
+Source file: data/hw1/raw/pages/configuration/storage.adoc
+Title: Storing state of a Debezium connector
+Text preview:
+== Overview
+
+Debezium connectors require persistent storage to preserve their state between restarts.
+All connectors require a mechanism to provide persistent storage for the offsets.
+In addition, connectors such as Db2, MySQL, Oracle,  and SQL Server, require additional storage for their so-called internal schema history, which records changes to table schema in the database.
+
+== Amazon S3
+
+Debezium can use the link:https://aws.amazon.com/s3/[Amazon S3] object storage service.
+Typically, you wo
+--------------------------------------------------------------------------------
+Rank: 3
+Score: 0.5430
+Chunk ID: pages:configuration:storage:file
+Source file: data/hw1/raw/pages/configuration/storage.adoc
+Title: Storing state of a Debezium connector
+Text preview:
+== Overview
+
+Debezium connectors require persistent storage to preserve their state between restarts.
+All connectors require a mechanism to provide persistent storage for the offsets.
+In addition, connectors such as Db2, MySQL, Oracle,  and SQL Server, require additional storage for their so-called internal schema history, which records changes to table schema in the database.
+
+== File
+
+It's possible to persist the position (offsets) of the connector in a local file on disk. 
+These offsets ensur
+--------------------------------------------------------------------------------
+Rank: 4
+Score: 0.5228
+Chunk ID: pages:configuration:storage:memory
+Source file: data/hw1/raw/pages/configuration/storage.adoc
+Title: Storing state of a Debezium connector
+Text preview:
+== Overview
+
+Debezium connectors require persistent storage to preserve their state between restarts.
+All connectors require a mechanism to provide persistent storage for the offsets.
+In addition, connectors such as Db2, MySQL, Oracle,  and SQL Server, require additional storage for their so-called internal schema history, which records changes to table schema in the database.
+
+== Memory
+
+`MemoryOffsetBackingStore` is a volatile, in-memory store that Debezium Embedded uses to track source offset
+--------------------------------------------------------------------------------
+Rank: 5
+Score: 0.4601
+Chunk ID: pages:configuration:storage:chronicle_queue
+Source file: data/hw1/raw/pages/configuration/storage.adoc
+Title: Storing state of a Debezium connector
+Text preview:
+== Overview
+
+Debezium connectors require persistent storage to preserve their state between restarts.
+All connectors require a mechanism to provide persistent storage for the offsets.
+In addition, connectors such as Db2, MySQL, Oracle,  and SQL Server, require additional storage for their so-called internal schema history, which records changes to table schema in the database.
+
+== Chronicle Queue
+
+Debezium connectors buffer change events in an internal queue before delivering them to the runtime
+--------------------------------------------------------------------------------
+
+Query: What is the difference between Kafka, file, and memory offset storage in Debezium?
+Top-k: 5
+
+--------------------------------------------------------------------------------
+Retrieved chunks
+--------------------------------------------------------------------------------
+Rank: 1
+Score: 0.6740
+Chunk ID: pages:configuration:storage:memory
+Source file: data/hw1/raw/pages/configuration/storage.adoc
+Title: Storing state of a Debezium connector
+Text preview:
+== Overview
+
+Debezium connectors require persistent storage to preserve their state between restarts.
+All connectors require a mechanism to provide persistent storage for the offsets.
+In addition, connectors such as Db2, MySQL, Oracle,  and SQL Server, require additional storage for their so-called internal schema history, which records changes to table schema in the database.
+
+== Memory
+
+`MemoryOffsetBackingStore` is a volatile, in-memory store that Debezium Embedded uses to track source offset
+--------------------------------------------------------------------------------
+Rank: 2
+Score: 0.6688
+Chunk ID: pages:configuration:storage:overview
+Source file: data/hw1/raw/pages/configuration/storage.adoc
+Title: Storing state of a Debezium connector
+Text preview:
+== Overview
+
+Debezium connectors require persistent storage to preserve their state between restarts.
+All connectors require a mechanism to provide persistent storage for the offsets.
+In addition, connectors such as Db2, MySQL, Oracle,  and SQL Server, require additional storage for their so-called internal schema history, which records changes to table schema in the database.
+
+Offset storage is provided automatically for deployments within the Kafka Connect runtime through one of the following 
+--------------------------------------------------------------------------------
+Rank: 3
+Score: 0.6525
+Chunk ID: pages:configuration:storage:file
+Source file: data/hw1/raw/pages/configuration/storage.adoc
+Title: Storing state of a Debezium connector
+Text preview:
+== Overview
+
+Debezium connectors require persistent storage to preserve their state between restarts.
+All connectors require a mechanism to provide persistent storage for the offsets.
+In addition, connectors such as Db2, MySQL, Oracle,  and SQL Server, require additional storage for their so-called internal schema history, which records changes to table schema in the database.
+
+== File
+
+It's possible to persist the position (offsets) of the connector in a local file on disk. 
+These offsets ensur
+--------------------------------------------------------------------------------
+Rank: 4
+Score: 0.6237
+Chunk ID: pages:configuration:storage:kafka
+Source file: data/hw1/raw/pages/configuration/storage.adoc
+Title: Storing state of a Debezium connector
+Text preview:
+== Overview
+
+Debezium connectors require persistent storage to preserve their state between restarts.
+All connectors require a mechanism to provide persistent storage for the offsets.
+In addition, connectors such as Db2, MySQL, Oracle,  and SQL Server, require additional storage for their so-called internal schema history, which records changes to table schema in the database.
+
+== Kafka
+
+Debezium can use Kafka to store its state, including source offsets and schema history. 
+Connectors implement
+--------------------------------------------------------------------------------
+Rank: 5
+Score: 0.5705
+Chunk ID: pages:configuration:storage:azure_blob_storage
+Source file: data/hw1/raw/pages/configuration/storage.adoc
+Title: Storing state of a Debezium connector
+Text preview:
+== Overview
+
+Debezium connectors require persistent storage to preserve their state between restarts.
+All connectors require a mechanism to provide persistent storage for the offsets.
+In addition, connectors such as Db2, MySQL, Oracle,  and SQL Server, require additional storage for their so-called internal schema history, which records changes to table schema in the database.
+
+== Azure Blob Storage
+
+Debezium can use the link:https://azure.microsoft.com/en-us/products/storage/blobs[Azure Blob] s
+--------------------------------------------------------------------------------
+
+Query: How does Debezium achieve exactly-once delivery with Kafka Connect?
+Top-k: 5
+
+--------------------------------------------------------------------------------
+Retrieved chunks
+--------------------------------------------------------------------------------
+Rank: 1
+Score: 0.7798
+Chunk ID: pages:configuration:eos:debezium_connectors_supporting_exactly_once_delivery
+Source file: data/hw1/raw/pages/configuration/eos.adoc
+Title: Exactly once delivery
+Text preview:
+== Overview
+
+Debezium provides at-least-once delivery guarantees.
+This means that no changes are missed; however, in some cases, a record may be delivered more than once.
+In certain scenarios, these duplicate records might be problematic, and exactly-once semantics may be required.
+
+Exactly-once delivery ensures that every change is delivered and appears in the change stream no more than once.
+This is a significantly stricter requirement than at-least-once delivery.
+
+Currently, Debezium does not
+--------------------------------------------------------------------------------
+Rank: 2
+Score: 0.7735
+Chunk ID: pages:configuration:eos:kafka_connect_exactly_once_support_for_source_connector
+Source file: data/hw1/raw/pages/configuration/eos.adoc
+Title: Exactly once delivery
+Text preview:
+== Overview
+
+Debezium provides at-least-once delivery guarantees.
+This means that no changes are missed; however, in some cases, a record may be delivered more than once.
+In certain scenarios, these duplicate records might be problematic, and exactly-once semantics may be required.
+
+== Kafka Connect exactly-once support for source connector
+
+Kafka Connect introduced support for exactly-once delivery for source connectors in link:https://cwiki.apache.org/confluence/display/KAFKA/KIP-618%3A+Exactl
+--------------------------------------------------------------------------------
+Rank: 3
+Score: 0.7697
+Chunk ID: pages:configuration:eos:configuration
+Source file: data/hw1/raw/pages/configuration/eos.adoc
+Title: Exactly once delivery
+Text preview:
+== Overview
+
+Debezium provides at-least-once delivery guarantees.
+This means that no changes are missed; however, in some cases, a record may be delivered more than once.
+In certain scenarios, these duplicate records might be problematic, and exactly-once semantics may be required.
+
+== Configuration
+
+=== Prerequisites
+
+Kafka must be running in distributed mode, and the Kafka Connect version must support exactly-once delivery (version 3.3.0 or higher).
+
+=== Configuration of the Kafka workers
+
+All
+--------------------------------------------------------------------------------
+Rank: 4
+Score: 0.7660
+Chunk ID: pages:configuration:eos:overview
+Source file: data/hw1/raw/pages/configuration/eos.adoc
+Title: Exactly once delivery
+Text preview:
+== Overview
+
+Debezium provides at-least-once delivery guarantees.
+This means that no changes are missed; however, in some cases, a record may be delivered more than once.
+In certain scenarios, these duplicate records might be problematic, and exactly-once semantics may be required.
+
+Exactly-once delivery ensures that every change is delivered and appears in the change stream no more than once.
+This is a significantly stricter requirement than at-least-once delivery.
+
+Currently, Debezium does not
+--------------------------------------------------------------------------------
+Rank: 5
+Score: 0.6272
+Chunk ID: issues:dbz:3:chunk_003
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: mongodb :  Unable to acquire buffer lock, buffer queue is likely full
+Text preview:
+debezium.source.capture.scope=database
+debezium.source.capture.target=wechat
+debezium.source.skipped.operations=t
+debezium.source.snapshot.mode=when_needed
+debezium.source.snapshot.max.threads=4
+debezium.source.tombstones.on.delete=false
+debezium.source.key.converter=org.apache.kafka.connect.json.JsonConverter
+debezium.source.key.converter.schemas.enable=false
+debezium.source.value.converter=org.apache.kafka.connect.json.JsonConverter
+debezium.source.value.converter.schemas.enable=false
+debezium
+--------------------------------------------------------------------------------
+
+Query: What must be configured before enabling exactly-once support for source connectors?
+Top-k: 5
+
+--------------------------------------------------------------------------------
+Retrieved chunks
+--------------------------------------------------------------------------------
+Rank: 1
+Score: 0.3762
+Chunk ID: issues:dbz:4:chunk_002
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Debezium can break when two column names differs only in letter case
+Text preview:
+.
+The connector is being created by the Strimzi Kafka operator. Also note I'm using an apicurio schema registry and the avro converters.
+{code}
+ERROR Producer failure (io.debezium.pipeline.ErrorHandler) [debezium-postgresconnector-encdb-change-event-source-coordinator]
+java.lang.IndexOutOfBoundsException: Index 299 out of bounds for length 299
+at java.base/jdk.internal.util.Preconditions.outOfBounds(Preconditions.java:64)
+at java.base/jdk.internal.util.Preconditions.outOfBoundsCheckIndex(Precond
+--------------------------------------------------------------------------------
+Rank: 2
+Score: 0.3668
+Chunk ID: issues:dbz:1407:chunk_002
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Postgres connector log position validation logic is flawed [DBZ-9535]
+Text preview:
+,
+"publication.name": "dbz_publication",
+"slot.name": "debezium",
+"snapshot.mode": "initial",
+"table.include.list": "public.entry,public.event,public.logbook",
+"tasks.max": "1",
+"topic.prefix": "mydb-prod"
+}{code}
+h2. What is the captured database version and mode of deployment?
+On-premise Postgres v16
+h2. What behavior do you expect?
+Expected the connector to resume normally after a restart.
+h2. What behavior do you see?
+The connector failed with the following exception:
+{code:java}
+io.debezium
+--------------------------------------------------------------------------------
+Rank: 3
+Score: 0.3429
+Chunk ID: issues:dbz:1407:chunk_010
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Postgres connector log position validation logic is flawed [DBZ-9535]
+Text preview:
+m/debezium/debezium/blob/29076fe2936b401982717708c713555c08d24aca/debezium-connector-postgres/src/main/java/io/debezium/connector/postgresql/connection/PostgresConnection.java#L853]). It should be {{lsn_proc}} (lastCompletelyProcessedLsn) value.
+{code:java}
+T1: BEGIN: 50
+T1: COMMIT: 100
+T2: BEGIN: 150
+<--- Connector restart with lsn_proc=170, lsn_commit=100 [Flush 170]
+T2: COMMIT: 200
+The restart_lsn can very well fall between LSN 100 and 150.{code}
+To temporarily mitigate the issue, the connect
+--------------------------------------------------------------------------------
+Rank: 4
+Score: 0.3358
+Chunk ID: issues:dbz:73:chunk_005
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Foreign Key Constraint Violation When Using Batch Processing in JDBC Sink Connector 2.7.0.Final [DBZ-8922]
+Text preview:
+uld I set to not have transactions in parallel?
+* Is there a recommended configuration or a workaround that would allow the connector to operate in batch mode without encountering these foreign key violations?, I can not disable foreign key o production environment.
+* Can I somehow use the JDBC connector hibernate.* passthrough properties?
+Any insight or guidance on resolving this ordering issue during batched operations in the connector would be greatly appreciated.
+h2. What Debezium connector 
+--------------------------------------------------------------------------------
+Rank: 5
+Score: 0.3265
+Chunk ID: issues:dbz:1407:chunk_011
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Postgres connector log position validation logic is flawed [DBZ-9535]
+Text preview:
+t}} value to match the {{{}lsn_proc{}}}, followed by a connector restart. After this change, the connector resumed normal operation without further errors.
+*2. Incorrect value being assigned to lsn field*
+We assign the value of lsn_commit to the lsn field each time the PostgresOffsetContext is intialized. ([ref1|https://github.com/debezium/debezium/blob/29076fe2936b401982717708c713555c08d24aca/debezium-connector-postgres/src/main/java/io/debezium/connector/postgresql/SourceInfo.java#L158-L160] a
+--------------------------------------------------------------------------------
+
+Query: Postgres connector resumes from an old or invalid LSN after restart and replication slot validation looks wrong
+Top-k: 5
+
+--------------------------------------------------------------------------------
+Retrieved chunks
+--------------------------------------------------------------------------------
+Rank: 1
+Score: 0.6363
+Chunk ID: issues:dbz:1407:chunk_011
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Postgres connector log position validation logic is flawed [DBZ-9535]
+Text preview:
+t}} value to match the {{{}lsn_proc{}}}, followed by a connector restart. After this change, the connector resumed normal operation without further errors.
+*2. Incorrect value being assigned to lsn field*
+We assign the value of lsn_commit to the lsn field each time the PostgresOffsetContext is intialized. ([ref1|https://github.com/debezium/debezium/blob/29076fe2936b401982717708c713555c08d24aca/debezium-connector-postgres/src/main/java/io/debezium/connector/postgresql/SourceInfo.java#L158-L160] a
+--------------------------------------------------------------------------------
+Rank: 2
+Score: 0.5944
+Chunk ID: issues:dbz:1407:chunk_010
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Postgres connector log position validation logic is flawed [DBZ-9535]
+Text preview:
+m/debezium/debezium/blob/29076fe2936b401982717708c713555c08d24aca/debezium-connector-postgres/src/main/java/io/debezium/connector/postgresql/connection/PostgresConnection.java#L853]). It should be {{lsn_proc}} (lastCompletelyProcessedLsn) value.
+{code:java}
+T1: BEGIN: 50
+T1: COMMIT: 100
+T2: BEGIN: 150
+<--- Connector restart with lsn_proc=170, lsn_commit=100 [Flush 170]
+T2: COMMIT: 200
+The restart_lsn can very well fall between LSN 100 and 150.{code}
+To temporarily mitigate the issue, the connect
+--------------------------------------------------------------------------------
+Rank: 3
+Score: 0.5935
+Chunk ID: issues:dbz:1407:chunk_009
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Postgres connector log position validation logic is flawed [DBZ-9535]
+Text preview:
+_commit{}}}.
+h2. How to reproduce the issue using our [tutorial|https://github.com/debezium/debezium-examples/tree/main/tutorial] deployment?
+The reproduction depends on the LSN value assigned as the {{{}restart_lsn{}}}. If, after flushing the latest LSN, the slot’s {{restart_lsn}} is set to a value greater than the last processed commit LSN, the issue will occur.
+h2. Proposed Fix
+*1. Incorrect log position validation*
+While comparing the stored offset LSN with the {{restart_lsn}} of the slot, w
+--------------------------------------------------------------------------------
+Rank: 4
+Score: 0.5810
+Chunk ID: issues:dbz:1407:chunk_006
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Postgres connector log position validation logic is flawed [DBZ-9535]
+Text preview:
+ortant Logs
+io.debezium.connector.common.BaseSourceTask
+Found previous partition offset PostgresPartition [sourcePartition={server=mydb-prod}]: {lsn_proc=22199280992, messageType=INSERT, lsn_commit=22198318480, lsn=22198318480, txId=81993951, ts_usec=1759815939078148}
+io.debezium.connector.postgresql.connection.PostgresConnection
+Slot 'debezium' has restart LSN 'LSN{5/2B2DED98}'
+io.debezium.connector.postgresql.connection.PostgresConnection
+Obtained valid replication slot ReplicationSlot [active
+--------------------------------------------------------------------------------
+Rank: 5
+Score: 0.4987
+Chunk ID: issues:dbz:1407:chunk_002
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Postgres connector log position validation logic is flawed [DBZ-9535]
+Text preview:
+,
+"publication.name": "dbz_publication",
+"slot.name": "debezium",
+"snapshot.mode": "initial",
+"table.include.list": "public.entry,public.event,public.logbook",
+"tasks.max": "1",
+"topic.prefix": "mydb-prod"
+}{code}
+h2. What is the captured database version and mode of deployment?
+On-premise Postgres v16
+h2. What behavior do you expect?
+Expected the connector to resume normally after a restart.
+h2. What behavior do you see?
+The connector failed with the following exception:
+{code:java}
+io.debezium
+--------------------------------------------------------------------------------
+
+Query: Debezium connector crashes when two table columns have the same name except for letter case
+Top-k: 5
+
+--------------------------------------------------------------------------------
+Retrieved chunks
+--------------------------------------------------------------------------------
+Rank: 1
+Score: 0.6918
+Chunk ID: issues:dbz:4:chunk_001
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Debezium can break when two column names differs only in letter case
+Text preview:
+# Debezium can break when two column names differs only in letter case
+I'm getting the exception below for two tables (out of 231 tables). In looking at the resolveColumnsFromStreamTupleData method, it seems that the short numberOfColumns = buffer.getShort(); is longer than the table.columns() which causes this exception and the connector shuts down. I was able get past the problem by adding the two offending tables to the table blacklist. This is all in development and no schema changes are bei
+--------------------------------------------------------------------------------
+Rank: 2
+Score: 0.5373
+Chunk ID: issues:dbz:73:chunk_009
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Foreign Key Constraint Violation When Using Batch Processing in JDBC Sink Connector 2.7.0.Final [DBZ-8922]
+Text preview:
+you have the connector logs, ideally from start till finish?
+(You might be asked later to provide [DEBUG/TRACE|https://debezium.io/documentation/reference/stable/operations/logging.html] level log)
+_Caused by: org.postgresql.util.PSQLException: ERROR: insert or update on table "CUsage" violates foreign key constraint "FK_CUsage_AUsage_AUsageId"_
+_Detail: Key (AUsageId)=(e9aa119d-15a4-4bcd-9c5d-02183dc3ff4b) is not present in table "AUsage"_
+h2. How to reproduce the issue using our [tutorial|http
+--------------------------------------------------------------------------------
+Rank: 3
+Score: 0.5315
+Chunk ID: issues:dbz:73:chunk_008
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Foreign Key Constraint Violation When Using Batch Processing in JDBC Sink Connector 2.7.0.Final [DBZ-8922]
+Text preview:
+t the connector to import the messages into the database in the same order as they are in the topic, without batch size 1 where performance is so poor.
+h2. What behavior do you see?
+The connector seems to transform the messages from the topic into native SQLs which it mixes in a different order or groups into multiple transactions that are run in parallel, thus leading to foreign key errors.
+h2. Do you see the same behaviour using the latest released Debezium version?
+(Ideally, also verify with 
+--------------------------------------------------------------------------------
+Rank: 4
+Score: 0.5014
+Chunk ID: issues:dbz:1407:chunk_001
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Postgres connector log position validation logic is flawed [DBZ-9535]
+Text preview:
+# Postgres connector log position validation logic is flawed [DBZ-9535]
+Migrated from [DBZ-9535](https://issues.redhat.com/browse/DBZ-9535)
+h1. Bug report
+For bug reports, provide this information, please:
+h2. What Debezium connector do you use and what version?
+Debezium Postgres v3.2.0
+h2. What is the connector configuration?
+{code:java}
+{
+"database.dbname": "mydb",
+"database.hostname": "<HOSTNAME>",
+"database.password": "<PASSWORD>",
+"database.port": "5432",
+"database.user": "postgresadmin",
+"
+--------------------------------------------------------------------------------
+Rank: 5
+Score: 0.4654
+Chunk ID: issues:dbz:1407:chunk_005
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Postgres connector log position validation logic is flawed [DBZ-9535]
+Text preview:
+latest version, and the same code is still present, so the bug exists there as well.
+h2. Do you have the connector logs, ideally from start till finish?
+(You might be asked later to provide [DEBUG/TRACE|https://debezium.io/documentation/reference/stable/operations/logging.html] level log)
+{code:java}
+// Stored offsets for the connector
+[
+{
+"partition": {
+"server": "mydb-prod"
+},
+"offset": {
+"lsn": 22199280992,
+"lsn_commit": 22198318480,
+"lsn_proc": 22199280992,
+"messageType": "INSERT",
+"ts_usec"
+--------------------------------------------------------------------------------
+
+Query: MongoDB connector backpressure error says unable to acquire buffer lock and queue is full
+Top-k: 5
+
+--------------------------------------------------------------------------------
+Retrieved chunks
+--------------------------------------------------------------------------------
+Rank: 1
+Score: 0.6650
+Chunk ID: issues:dbz:3:chunk_009
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: mongodb :  Unable to acquire buffer lock, buffer queue is likely full
+Text preview:
+oracle-x64/bin/java","processId":2926039}
+{"timestamp":"2025-11-27T15:38:35.806577048+08:00","sequence":795,"loggerClassName":"org.slf4j.impl.Slf4jLogger","loggerName":"io.debezium.connector.mongodb.events.BufferingChangeStreamCursor","level":"WARN","message":"Unable to acquire buffer lock, buffer queue is likely full","threadName":"debezium-mongodbconnector-pro-replicator-fetcher-0","threadId":90,"mdc":{"dbz.connectorLogicalName":"pro","dbz.taskId":"0","dbz.connectorType":"MongoDB","dbz.connect
+--------------------------------------------------------------------------------
+Rank: 2
+Score: 0.6646
+Chunk ID: issues:dbz:3:chunk_006
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: mongodb :  Unable to acquire buffer lock, buffer queue is likely full
+Text preview:
+queue is likely full","threadName":"debezium-mongodbconnector-pro-replicator-fetcher-0","threadId":90,"mdc":{"dbz.connectorLogicalName":"pro","dbz.taskId":"0","dbz.connectorType":"MongoDB","dbz.connectorContext":"streaming"},"ndc":"","hostName":"sync","processName":"/usr/lib/jvm/jdk-21-oracle-x64/bin/java","processId":2926039}
+{"timestamp":"2025-11-27T15:38:33.5708462+08:00","sequence":793,"loggerClassName":"org.slf4j.impl.Slf4jLogger","loggerName":"io.debezium.connector.mongodb.events.Buffering
+--------------------------------------------------------------------------------
+Rank: 3
+Score: 0.6564
+Chunk ID: issues:dbz:3:chunk_007
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: mongodb :  Unable to acquire buffer lock, buffer queue is likely full
+Text preview:
+ble to acquire buffer lock, buffer queue is likely full","threadName":"debezium-mongodbconnector-pro-replicator-fetcher-0","threadId":90,"mdc":{"dbz.connectorLogicalName":"pro","dbz.taskId":"0","dbz.connectorType":"MongoDB","dbz.connectorContext":"streaming"},"ndc":"","hostName":"sync","processName":"/usr/lib/jvm/jdk-21-oracle-x64/bin/java","processId":2926039}
+{"timestamp":"2025-11-27T15:38:33.651107205+08:00","sequence":794,"loggerClassName":"org.slf4j.impl.Slf4jLogger","loggerName":"io.debezi
+--------------------------------------------------------------------------------
+Rank: 4
+Score: 0.6562
+Chunk ID: issues:dbz:3:chunk_001
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: mongodb :  Unable to acquire buffer lock, buffer queue is likely full
+Text preview:
+# mongodb :  Unable to acquire buffer lock, buffer queue is likely full
+## Bug report
+**What Debezium connector do you use and what version?**
+Version: DebeziumServer3.2.5
+Connector: mongodb connect for mongodb8
+---
+**What is the connector configuration?**
+debezium.source.name=wechat_pro
+debezium.source.connector.class=io.debezium.connector.mongodb.MongoDbConnector
+debezium.source.mongodb.connection.string=mongodb://server1,server2/admin?replicaSet=mgset-92139473
+debezium.source.mongodb.name=wec
+--------------------------------------------------------------------------------
+Rank: 5
+Score: 0.6488
+Chunk ID: issues:dbz:3:chunk_010
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: mongodb :  Unable to acquire buffer lock, buffer queue is likely full
+Text preview:
+,"processName":"/usr/lib/jvm/jdk-21-oracle-x64/bin/java","processId":2926039}
+{"timestamp":"2025-11-27T15:38:36.391156985+08:00","sequence":796,"loggerClassName":"org.slf4j.impl.Slf4jLogger","loggerName":"io.debezium.connector.mongodb.events.BufferingChangeStreamCursor","level":"WARN","message":"Unable to acquire buffer lock, buffer queue is likely full","threadName":"debezium-mongodbconnector-pro-replicator-fetcher-0","threadId":90,"mdc":{"dbz.connectorLogicalName":"pro","dbz.taskId":"0","dbz.c
+--------------------------------------------------------------------------------
+
+Query: JDBC sink writes records in the correct topic order but batch processing causes foreign key violations
+Top-k: 5
+
+--------------------------------------------------------------------------------
+Retrieved chunks
+--------------------------------------------------------------------------------
+Rank: 1
+Score: 0.6878
+Chunk ID: issues:dbz:73:chunk_001
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Foreign Key Constraint Violation When Using Batch Processing in JDBC Sink Connector 2.7.0.Final [DBZ-8922]
+Text preview:
+# Foreign Key Constraint Violation When Using Batch Processing in JDBC Sink Connector 2.7.0.Final [DBZ-8922]
+Migrated from [DBZ-8922](https://issues.redhat.com/browse/DBZ-8922)
+In order to make your issue reports as actionable as possible, please provide the following information, depending on the issue type.
+h1. Bug report
+For bug reports, provide this information, please:
+We are experiencing a foreign key constraint violation when using the Debezium JDBC Sink Connector 2.7.0.Final with batch s
+--------------------------------------------------------------------------------
+Rank: 2
+Score: 0.5122
+Chunk ID: issues:dbz:73:chunk_004
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Foreign Key Constraint Violation When Using Batch Processing in JDBC Sink Connector 2.7.0.Final [DBZ-8922]
+Text preview:
+("Id")_
+_ON DELETE CASCADE_
+_DEFERRABLE INITIALLY DEFERRED;_
+* _Connection Pool Settings:_
+Forced a single-connection pool with settings, but the error persisted.:
+** {{connection.pool.min_size = 1}}
+** {{connection.pool.max_size = 1}}
+** {{connection.pool.acquire_increment = 0}}
+Questions:
+* Why does the batching lead to a violation of foreign key constraints even when the topic messages are in the proper order?
+* Could there be an issue with how the SQL statements are grouped into transactions
+--------------------------------------------------------------------------------
+Rank: 3
+Score: 0.5111
+Chunk ID: issues:dbz:73:chunk_005
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Foreign Key Constraint Violation When Using Batch Processing in JDBC Sink Connector 2.7.0.Final [DBZ-8922]
+Text preview:
+uld I set to not have transactions in parallel?
+* Is there a recommended configuration or a workaround that would allow the connector to operate in batch mode without encountering these foreign key violations?, I can not disable foreign key o production environment.
+* Can I somehow use the JDBC connector hibernate.* passthrough properties?
+Any insight or guidance on resolving this ordering issue during batched operations in the connector would be greatly appreciated.
+h2. What Debezium connector 
+--------------------------------------------------------------------------------
+Rank: 4
+Score: 0.5108
+Chunk ID: issues:dbz:73:chunk_002
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Foreign Key Constraint Violation When Using Batch Processing in JDBC Sink Connector 2.7.0.Final [DBZ-8922]
+Text preview:
+r topic are in the correct order, increasing the batch size seems to introduce an issue during the insert/update operations on the target PostgreSQL 15.4 database.
+Observed Behavior:
+* With the connector configured for {{batch.size=1}} and {{{}consumer.override.max.poll.records=1{}}}, all operations proceed correctly without any foreign key issues.
+* When the batch size is increased to {{500}} (along with {{{}consumer.override.max.poll.records=500{}}}), we receive errors such as:
+_Caused by: org
+--------------------------------------------------------------------------------
+Rank: 5
+Score: 0.4988
+Chunk ID: issues:dbz:73:chunk_008
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Foreign Key Constraint Violation When Using Batch Processing in JDBC Sink Connector 2.7.0.Final [DBZ-8922]
+Text preview:
+t the connector to import the messages into the database in the same order as they are in the topic, without batch size 1 where performance is so poor.
+h2. What behavior do you see?
+The connector seems to transform the messages from the topic into native SQLs which it mixes in a different order or groups into multiple transactions that are run in parallel, thus leading to foreign key errors.
+h2. Do you see the same behaviour using the latest released Debezium version?
+(Ideally, also verify with 
+--------------------------------------------------------------------------------
+
+Query: Which issue is only about migrating tests from JUnit4 to a newer JUnit version?
+Top-k: 5
+
+--------------------------------------------------------------------------------
+Retrieved chunks
+--------------------------------------------------------------------------------
+Rank: 1
+Score: 0.4945
+Chunk ID: issues:dbz:11:chunk_001
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Migrate from JUnit4 to JUnit 5
+Text preview:
+# Migrate from JUnit4 to JUnit 5
+Update JUnit to version 6 and be aligned with Quarkus.
+--------------------------------------------------------------------------------
+Rank: 2
+Score: 0.2592
+Chunk ID: issues:dbz:73:chunk_007
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Foreign Key Constraint Violation When Using Batch Processing in JDBC Sink Connector 2.7.0.Final [DBZ-8922]
+Text preview:
+ezium.connectors.smt.CustomImportFilter",
+"delete.enabled": "true",
+"name": "IMPORT.LOCAL.35adb52b-803b-4ad6-9527-a28080142fe1.83c1243c-3daf-4eb9-a6b5-e5e6b1526c04",
+"primary.key.fields": "Id",
+"auto.create": "true",
+"connection.url": "jdbc:postgresql://192.168.34.123:5432/DatabaseName",
+"table.naming.strategy": "custom.debezium.connectors.smt.CustomTableNamingStrategy"
+}
+h2. What is the captured database version and mode of deployment?
+(E.g. on-premises, with a specific cloud provider, etc.)
+on
+--------------------------------------------------------------------------------
+Rank: 3
+Score: 0.2276
+Chunk ID: issues:dbz:73:chunk_005
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Foreign Key Constraint Violation When Using Batch Processing in JDBC Sink Connector 2.7.0.Final [DBZ-8922]
+Text preview:
+uld I set to not have transactions in parallel?
+* Is there a recommended configuration or a workaround that would allow the connector to operate in batch mode without encountering these foreign key violations?, I can not disable foreign key o production environment.
+* Can I somehow use the JDBC connector hibernate.* passthrough properties?
+Any insight or guidance on resolving this ordering issue during batched operations in the connector would be greatly appreciated.
+h2. What Debezium connector 
+--------------------------------------------------------------------------------
+Rank: 4
+Score: 0.2251
+Chunk ID: issues:dbz:4:chunk_005
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Debezium can break when two column names differs only in letter case
+Text preview:
+ion.java:472)
+at io.debezium.connector.postgresql.PostgresStreamingChangeEventSource.searchWalPosition(PostgresStreamingChangeEventSource.java:271)
+at io.debezium.connector.postgresql.PostgresStreamingChangeEventSource.execute(PostgresStreamingChangeEventSource.java:131)
+at io.debezium.pipeline.ChangeEventSourceCoordinator.streamEvents(ChangeEventSourceCoordinator.java:140)
+at io.debezium.pipeline.ChangeEventSourceCoordinator.lambda$start$0(ChangeEventSourceCoordinator.java:113)
+at java.base/jav
+--------------------------------------------------------------------------------
+Rank: 5
+Score: 0.2209
+Chunk ID: issues:dbz:1407:chunk_002
+Source file: data/hw1/raw/issues/debezium-project-5.jsonl
+Title: Postgres connector log position validation logic is flawed [DBZ-9535]
+Text preview:
+,
+"publication.name": "dbz_publication",
+"slot.name": "debezium",
+"snapshot.mode": "initial",
+"table.include.list": "public.entry,public.event,public.logbook",
+"tasks.max": "1",
+"topic.prefix": "mydb-prod"
+}{code}
+h2. What is the captured database version and mode of deployment?
+On-premise Postgres v16
+h2. What behavior do you expect?
+Expected the connector to resume normally after a restart.
+h2. What behavior do you see?
+The connector failed with the following exception:
+{code:java}
+io.debezium
+--------------------------------------------------------------------------------
+
+
+Baseline semantic retrieval by vector similarity only.
+Metadata filtering, hybrid search, and reranking are not included yet.
