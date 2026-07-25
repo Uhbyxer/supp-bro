@@ -1575,6 +1575,3 @@ The connector failed with the following exception:
 io.debezium.DebeziumException: The connector is trying to read change stream starting at PostgresOffsetContext [sourceInfoSchema=Schema{io.debezium.connector.postgresql.Source:STRUCT}, sourceInfo=source_info[ser
 --------------------------------------------------------------------------------
 
-
-Baseline semantic retrieval by vector similarity only.
-Metadata filtering, hybrid search, and reranking are not included yet.

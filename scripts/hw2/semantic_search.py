@@ -149,9 +149,6 @@ def main() -> None:
         )
         print_results(query, results)
         print()
-    print()
-    print("Baseline semantic retrieval by vector similarity only.")
-    print("Metadata filtering, hybrid search, and reranking are not included yet.")
 
 
 if __name__ == "__main__":
