@@ -13,7 +13,7 @@ HW2 будує semantic search index на основі chunks, підготов�
 - `data/hw2/processed/embeddings.npy`;
 - `data/hw2/index/faiss.index`.
 
-Щоб зберегти результат перевірки semantic search у текстовий файл, запусти:
+Зберегти результат перевірки semantic search у текстовий файл:
 
 ```bash
 python scripts/hw2/semantic_search.py > data/hw2/output/semantic_search_output.txt
