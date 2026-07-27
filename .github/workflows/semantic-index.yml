@@ -46,6 +46,12 @@ jobs:
             data/hw2/processed/chunks_for_retrieval.jsonl
           key: ${{ steps.cache-key.outputs.key }}
 
+      - name: Require FAISS index cache hit
+        if: steps.faiss-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "FAISS index cache miss for key: ${{ steps.cache-key.outputs.key }}"
+          exit 1
+
       - name: Install dependencies
         run: make setup
 
