@@ -1,10 +1,10 @@
-name: Semantic Index
+name: Use Semantic Index Cache
 
 on:
   workflow_dispatch:
 
 jobs:
-  semantic-index:
+  use-semantic-index-cache:
     runs-on: ubuntu-latest
 
     env:
@@ -36,19 +36,14 @@ jobs:
 
       - name: Restore FAISS index cache
         id: faiss-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: |
             data/hw2/index/faiss.index
             data/hw2/processed/embeddings.npy
             data/hw2/processed/chunks_for_retrieval.jsonl
           key: ${{ steps.cache-key.outputs.key }}
-
-      - name: Require FAISS index cache hit
-        if: steps.faiss-cache.outputs.cache-hit != 'true'
-        run: |
-          echo "FAISS index cache miss for key: ${{ steps.cache-key.outputs.key }}"
-          exit 1
+          fail-on-cache-miss: true
 
       - name: Install dependencies
         run: make setup
