@@ -1,0 +1,59 @@
+name: Semantic Index
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  semantic-index:
+    runs-on: ubuntu-latest
+
+    env:
+      PYTHON_VERSION: "3.11"
+      EMBEDDING_MODEL: sentence-transformers/all-MiniLM-L6-v2
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Compute FAISS cache key
+        id: cache-key
+        run: |
+          cache_hash="$(
+            sha256sum \
+              requirements.txt \
+              scripts/hw2/build_index.py \
+              data/hw1/processed/chunks_large.jsonl \
+              data/hw1/processed/chunks_medium.json |
+            sha256sum |
+            cut -d ' ' -f 1
+          )"
+          echo "key=faiss-${{ runner.os }}-py${PYTHON_VERSION}-${EMBEDDING_MODEL}-${cache_hash}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore FAISS index cache
+        id: faiss-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/hw2/index/faiss.index
+            data/hw2/processed/embeddings.npy
+            data/hw2/processed/chunks_for_retrieval.jsonl
+          key: ${{ steps.cache-key.outputs.key }}
+
+      - name: Require FAISS index cache hit
+        if: steps.faiss-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "FAISS index cache miss for key: ${{ steps.cache-key.outputs.key }}"
+          exit 1
+
+      - name: Install dependencies
+        run: make setup
+
+      - name: Check semantic search
+        run: make semantic-search
