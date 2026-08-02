@@ -280,7 +280,6 @@ def main() -> None:
     print(f"Vector field: {EMBEDDING_FIELD}")
     print(f"Vector dimension: {embedding_dimension}")
     print(f"Similarity: {VECTOR_SIMILARITY}")
-    print("Cleanup stale documents: true")
     print()
     print("MongoDB Atlas stores chunk text, metadata, and vectors in one collection.")
 
