@@ -120,7 +120,11 @@ class MongoVectorIndexBackend:
                         "path": EMBEDDING_FIELD,
                         "numDimensions": self.embedding_dimension,
                         "similarity": VECTOR_SIMILARITY,
-                    }
+                    },
+                    {
+                        "type": "filter",
+                        "path": "pipeline",
+                    },
                 ]
             },
             name=self.index_name,

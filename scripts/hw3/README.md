@@ -11,7 +11,8 @@ HW3 фокусується на покращенні retrieval pipeline післ
 - `data/hw1/processed/chunks_large.jsonl`;
 - `data/hw1/processed/chunks_medium.json`.
 
-Скрипт створює embeddings через `sentence-transformers/all-MiniLM-L6-v2`, завантажує один MongoDB document на кожен chunk і створює Atlas Vector Search index для поля `embedding`. Це storage/indexing частина покращеного retrieval pipeline; query-time retrieval checks можна додати наступним кроком у HW3.
+Скрипт створює embeddings через `sentence-transformers/all-MiniLM-L6-v2`, завантажує один MongoDB document на кожен chunk і створює Atlas Vector Search index для поля `embedding`.
+Після цього `scripts/hw3/mongo_semantic_search.py` запускає ті самі тестові queries, що й HW2 FAISS baseline, щоб результати можна було порівнювати напряму.
 
 ## Environment variables для MongoDB
 
@@ -42,9 +43,22 @@ MONGODB_VECTOR_INDEX=vector_index
 MONGODB_URI="mongodb+srv://..." make build-mongo-index
 ```
 
+Перевірити semantic search через MongoDB Atlas Vector Search:
+
+```bash
+MONGODB_URI="mongodb+srv://..." make mongo-semantic-search
+```
+
+Зберегти результат MongoDB semantic search у текстовий файл для порівняння з HW2:
+
+```bash
+MONGODB_URI="mongodb+srv://..." make mongo-semantic-search > data/hw2/output/mongo_semantic_search_output.txt
+```
+
 Vector index використовує:
 
 - vector path: `embedding`;
+- filter path: `pipeline`;
 - dimensions: `384`;
 - similarity: `dotProduct`.
 
@@ -74,7 +88,11 @@ env:
   MONGODB_VECTOR_INDEX: vector_index
 ```
 
-У цьому repo GitHub Actions workflow для MongoDB запускається тільки вручну через `workflow_dispatch`.
+У цьому repo GitHub Actions workflows для MongoDB запускаються тільки вручну через `workflow_dispatch`.
+Є два окремі workflows:
+
+- `Build HW3 Mongo Vector Index`: будує embeddings, upsert documents у MongoDB і створює Atlas Vector Search index;
+- `Check HW3 Mongo Semantic Search`: запускає MongoDB semantic search з тими самими queries, що й HW2, показує Markdown table у GitHub Actions summary і завантажує `mongo_semantic_search_output.txt` / `mongo_semantic_search_summary.md` як artifact.
 
 Для GitHub-hosted runners треба врахувати Atlas IP allow-list: runner IP може змінюватися між запусками.
 Для стабільнішого доступу можна використати self-hosted runner зі static IP або окремо налаштувати Atlas network access для CI.
