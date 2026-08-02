@@ -29,6 +29,7 @@ PIPELINE_NAME = "hw3_mongo_vector"
 EMBEDDING_FIELD = "embedding"
 TOP_K = 5
 NUM_CANDIDATES = 100
+DEFAULT_SUMMARY_PATH = PROJECT_ROOT / "data/hw2/output/mongo_semantic_search_summary.md"
 
 
 def get_required_env(name: str) -> str:
@@ -160,6 +161,48 @@ def print_results(query: str, results: list[dict[str, Any]], top_k: int) -> None
         print("-" * 80)
 
 
+def escape_markdown_table_cell(value: str) -> str:
+    """
+    Escape characters that break GitHub Markdown tables.
+    """
+    return value.replace("|", "\\|").replace("\n", " ")
+
+
+def format_results_for_table(results: list[dict[str, Any]]) -> str:
+    """
+    Format retrieved chunk ids and scores for a compact Markdown table cell.
+    """
+    if not results:
+        return "_No results_"
+
+    formatted_results = []
+    for rank, result in enumerate(results, start=1):
+        chunk_id = escape_markdown_table_cell(str(result["chunk_id"]))
+        formatted_results.append(f"{rank}. `{chunk_id}` (score: {result['score']:.4f})")
+    return "<br>".join(formatted_results)
+
+
+def write_markdown_summary(
+    query_results: list[tuple[str, list[dict[str, Any]]]],
+    output_path: Path,
+) -> None:
+    """
+    Write a GitHub Actions-friendly Markdown table with one row per query.
+    """
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "# HW3 MongoDB Semantic Search Results",
+        "",
+        "| Query | Retrieved chunks and scores |",
+        "| --- | --- |",
+    ]
+    for query, results in query_results:
+        escaped_query = escape_markdown_table_cell(query)
+        lines.append(f"| {escaped_query} | {format_results_for_table(results)} |")
+    lines.append("")
+    output_path.write_text("\n".join(lines), encoding="utf-8")
+
+
 def main() -> None:
     try:
         from dotenv import load_dotenv
@@ -175,6 +218,7 @@ def main() -> None:
     vector_index_name = os.environ.get("MONGODB_VECTOR_INDEX", DEFAULT_VECTOR_INDEX_NAME)
     top_k = int(os.environ.get("MONGODB_SEARCH_TOP_K", TOP_K))
     num_candidates = int(os.environ.get("MONGODB_SEARCH_NUM_CANDIDATES", NUM_CANDIDATES))
+    summary_path = Path(os.environ.get("MONGODB_SEARCH_SUMMARY_PATH", DEFAULT_SUMMARY_PATH))
 
     from pymongo import MongoClient
     from sentence_transformers import SentenceTransformer
@@ -194,6 +238,7 @@ def main() -> None:
     collection = client[database_name][collection_name]
     model = SentenceTransformer(MODEL_NAME)
 
+    query_results: list[tuple[str, list[dict[str, Any]]]] = []
     for query in QUERIES:
         results = search(
             query=query,
@@ -203,8 +248,12 @@ def main() -> None:
             top_k=top_k,
             num_candidates=num_candidates,
         )
+        query_results.append((query, results))
         print_results(query, results, top_k)
         print()
+
+    write_markdown_summary(query_results, summary_path)
+    print(f"Markdown summary: {summary_path}")
 
 
 if __name__ == "__main__":

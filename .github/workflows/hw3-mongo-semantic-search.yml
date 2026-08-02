@@ -27,10 +27,17 @@ jobs:
         run: make setup
 
       - name: Check MongoDB Atlas semantic search
+        env:
+          MONGODB_SEARCH_SUMMARY_PATH: data/hw2/output/mongo_semantic_search_summary.md
         run: make mongo-semantic-search > data/hw2/output/mongo_semantic_search_output.txt
+
+      - name: Add MongoDB semantic search table to job summary
+        run: cat data/hw2/output/mongo_semantic_search_summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload MongoDB semantic search output
         uses: actions/upload-artifact@v4
         with:
           name: mongo-semantic-search-output
-          path: data/hw2/output/mongo_semantic_search_output.txt
+          path: |
+            data/hw2/output/mongo_semantic_search_output.txt
+            data/hw2/output/mongo_semantic_search_summary.md

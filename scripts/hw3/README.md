@@ -92,7 +92,7 @@ env:
 Є два окремі workflows:
 
 - `Build HW3 Mongo Vector Index`: будує embeddings, upsert documents у MongoDB і створює Atlas Vector Search index;
-- `Check HW3 Mongo Semantic Search`: запускає MongoDB semantic search з тими самими queries, що й HW2, і завантажує `mongo_semantic_search_output.txt` як artifact.
+- `Check HW3 Mongo Semantic Search`: запускає MongoDB semantic search з тими самими queries, що й HW2, показує Markdown table у GitHub Actions summary і завантажує `mongo_semantic_search_output.txt` / `mongo_semantic_search_summary.md` як artifact.
 
 Для GitHub-hosted runners треба врахувати Atlas IP allow-list: runner IP може змінюватися між запусками.
 Для стабільнішого доступу можна використати self-hosted runner зі static IP або окремо налаштувати Atlas network access для CI.
