@@ -26,7 +26,7 @@ HW3 фокусується на покращенні retrieval pipeline післ
 - `MONGODB_VECTOR_INDEX`: vector index name, default `vector_index`;
 - `MONGODB_CLEANUP_STALE`: видаляти stale records для цього pipeline, default `true`.
 
-Для локального запуску можна створити `.env` у root папці repo:
+Для локального запуску можна змінити `.env` у root папці repo:
 
 ```env
 MONGODB_URI=mongodb+srv://user:password@cluster.mongodb.net/
@@ -36,7 +36,7 @@ MONGODB_VECTOR_INDEX=vector_index
 MONGODB_CLEANUP_STALE=true
 ```
 
-Файл `.env` не потрібно commit-ити. У repo є `.env.example` тільки з placeholder values.
+Файл `.env` містить placeholder values. Для локального запуску заміни `MONGODB_URI` на свій MongoDB Atlas connection string.
 
 ## Запуск
 
@@ -64,7 +64,7 @@ Vector index використовує:
 
 ## GitHub Actions
 
-Для GitHub Actions не треба commit-ити `.env`.
+Для GitHub Actions credentials не беруться з `.env`.
 `MONGODB_URI` потрібно додати як GitHub repository Secret.
 Не секретні значення можна задати як workflow env або GitHub Variables:
 
