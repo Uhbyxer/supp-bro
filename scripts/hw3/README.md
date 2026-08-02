@@ -88,8 +88,11 @@ env:
   MONGODB_VECTOR_INDEX: vector_index
 ```
 
-У цьому repo GitHub Actions workflow для MongoDB запускається тільки вручну через `workflow_dispatch`.
-Workflow будує MongoDB vector index, запускає MongoDB semantic search з тими самими queries і завантажує `mongo_semantic_search_output.txt` як artifact.
+У цьому repo GitHub Actions workflows для MongoDB запускаються тільки вручну через `workflow_dispatch`.
+Є два окремі workflows:
+
+- `Build HW3 Mongo Vector Index`: будує embeddings, upsert documents у MongoDB і створює Atlas Vector Search index;
+- `Check HW3 Mongo Semantic Search`: запускає MongoDB semantic search з тими самими queries, що й HW2, і завантажує `mongo_semantic_search_output.txt` як artifact.
 
 Для GitHub-hosted runners треба врахувати Atlas IP allow-list: runner IP може змінюватися між запусками.
 Для стабільнішого доступу можна використати self-hosted runner зі static IP або окремо налаштувати Atlas network access для CI.

@@ -1,10 +1,10 @@
-name: Build HW3 Mongo Vector Index
+name: Check HW3 Mongo Semantic Search
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-hw3-mongo-vector-index:
+  check-hw3-mongo-semantic-search:
     runs-on: ubuntu-latest
 
     env:
@@ -26,5 +26,11 @@ jobs:
       - name: Install dependencies
         run: make setup
 
-      - name: Build MongoDB Atlas vector index
-        run: make build-mongo-index
+      - name: Check MongoDB Atlas semantic search
+        run: make mongo-semantic-search > data/hw2/output/mongo_semantic_search_output.txt
+
+      - name: Upload MongoDB semantic search output
+        uses: actions/upload-artifact@v4
+        with:
+          name: mongo-semantic-search-output
+          path: data/hw2/output/mongo_semantic_search_output.txt
