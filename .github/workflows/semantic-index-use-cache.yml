@@ -49,4 +49,17 @@ jobs:
         run: make setup
 
       - name: Check semantic search
-        run: make semantic-search
+        env:
+          FAISS_SEARCH_SUMMARY_PATH: data/hw2/output/faiss_semantic_search_summary.md
+        run: make semantic-search > data/hw2/output/faiss_semantic_search_output.txt
+
+      - name: Add FAISS semantic search table to job summary
+        run: cat data/hw2/output/faiss_semantic_search_summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload FAISS semantic search output
+        uses: actions/upload-artifact@v4
+        with:
+          name: faiss-semantic-search-output
+          path: |
+            data/hw2/output/faiss_semantic_search_output.txt
+            data/hw2/output/faiss_semantic_search_summary.md

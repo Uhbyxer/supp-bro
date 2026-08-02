@@ -19,6 +19,14 @@ HW2 будує semantic search index на основі chunks, підготов�
 python scripts/hw2/semantic_search.py > data/hw2/output/semantic_search_output.txt
 ```
 
+Скрипт також створює Markdown summary table:
+
+```text
+data/hw2/output/faiss_semantic_search_summary.md
+```
+
+У GitHub Actions workflow `Use Semantic Index Cache` ця таблиця показується в job summary і завантажується як artifact разом із повним text output.
+
 ## Тестові queries для semantic index
 
 Після побудови semantic index можна перевірити, чи пошук знаходить правильні chunks з `data/hw2/processed/chunks_for_retrieval.jsonl`.
