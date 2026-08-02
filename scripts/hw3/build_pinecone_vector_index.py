@@ -24,7 +24,7 @@ INPUT_CHUNK_PATHS = [
     HW1_PROCESSED_DIR / "chunks_medium.json",
 ]
 DEFAULT_INDEX_NAME = "supp-bro"
-DEFAULT_NAMESPACE = "hw3-pinecone-vector"
+DEFAULT_NAMESPACE = "supp-bro-pinecone-vector"
 DEFAULT_CLOUD = "aws"
 DEFAULT_REGION = "us-east-1"
 VECTOR_METRIC = "cosine"
