@@ -3,7 +3,7 @@ VENV ?= .venv
 PIP := $(VENV)/bin/pip
 PYTHON_BIN := $(VENV)/bin/python
 
-.PHONY: setup download-issues build-index semantic-search
+.PHONY: setup download-issues build-index semantic-search build-mongo-index
 setup:
 	$(PYTHON) -m venv $(VENV)
 	$(PYTHON_BIN) -m pip install --upgrade pip
@@ -18,3 +18,6 @@ build-index:
 
 semantic-search:
 	$(PYTHON_BIN) scripts/hw2/semantic_search.py
+
+build-mongo-index:
+	$(PYTHON_BIN) scripts/hw3/build_mongo_vector_index.py

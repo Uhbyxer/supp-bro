@@ -57,3 +57,11 @@ make download-issues
 ## HW1 Knowledge Base
 
 The HW1 data preparation scripts are documented in [scripts/hw1/KnowledgeBase_Readme.md](scripts/hw1/KnowledgeBase_Readme.md). They were created for [HW1_Knowledge_Base.md](https://github.com/Uhbyxer/RAG-1/blob/master/HW1_Knowledge_Base.md) and cover preparing normalized documents and chunks for the knowledge base.
+
+## HW2 Semantic Index
+
+The HW2 semantic search baseline is documented in [scripts/hw2/README.md](scripts/hw2/README.md). It builds a local FAISS index from the HW1 chunks and records retrieval checks for test queries.
+
+## HW3 Retrieval Pipeline Improvements
+
+The HW3 retrieval pipeline work is documented in [scripts/hw3/README.md](scripts/hw3/README.md). The first step moves semantic retrieval storage from the local FAISS baseline toward MongoDB Atlas Vector Search, with later space for comparing other retrieval backends such as Pinecone.
