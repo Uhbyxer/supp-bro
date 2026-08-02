@@ -3,7 +3,7 @@ VENV ?= .venv
 PIP := $(VENV)/bin/pip
 PYTHON_BIN := $(VENV)/bin/python
 
-.PHONY: setup download-issues build-index semantic-search build-mongo-index mongo-semantic-search build-pinecone-index
+.PHONY: setup download-issues build-index semantic-search build-mongo-index mongo-semantic-search build-pinecone-index pinecone-semantic-search
 setup:
 	$(PYTHON) -m venv $(VENV)
 	$(PYTHON_BIN) -m pip install --upgrade pip
@@ -27,3 +27,6 @@ mongo-semantic-search:
 
 build-pinecone-index:
 	$(PYTHON_BIN) scripts/hw3/build_pinecone_vector_index.py
+
+pinecone-semantic-search:
+	$(PYTHON_BIN) scripts/hw3/pinecone_semantic_search.py
