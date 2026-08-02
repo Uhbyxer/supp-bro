@@ -22,7 +22,7 @@ sys.path.append(str(HW2_SCRIPTS_DIR))
 from search_queries import QUERIES
 
 DEFAULT_INDEX_NAME = "supp-bro"
-DEFAULT_NAMESPACE = "hw3-pinecone-vector"
+DEFAULT_NAMESPACE = "supp-bro-pinecone-vector"
 TOP_K = 5
 DEFAULT_SUMMARY_PATH = PROJECT_ROOT / "data/hw2/output/pinecone_semantic_search_summary.md"
 
