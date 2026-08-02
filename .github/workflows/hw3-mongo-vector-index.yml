@@ -1,0 +1,40 @@
+name: Build HW3 Mongo Vector Index
+
+on:
+  workflow_dispatch:
+    inputs:
+      cleanup_stale:
+        description: Delete stale hw3_mongo_vector documents before creating the vector index summary
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+jobs:
+  build-hw3-mongo-vector-index:
+    runs-on: ubuntu-latest
+
+    env:
+      PYTHON_VERSION: "3.11"
+      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      MONGODB_DATABASE: supp-bro
+      MONGODB_COLLECTION: chunks
+      MONGODB_VECTOR_INDEX: vector_index
+      MONGODB_CLEANUP_STALE: ${{ inputs.cleanup_stale }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: make setup
+
+      - name: Build MongoDB Atlas vector index
+        run: make build-mongo-index

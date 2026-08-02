@@ -6,3 +6,4 @@ numpy==1.26.4
 openai>=1.80.0
 langgraph>=1.0.0
 python-slugify==8.0.4
+pymongo>=4.7.0
