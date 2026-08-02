@@ -3,7 +3,7 @@
 HW3 фокусується на покращенні retrieval pipeline після локального FAISS baseline з HW2.
 Перше покращення - перенести semantic retrieval storage у MongoDB Atlas Vector Search, щоб chunk text, metadata та embeddings зберігалися в одній searchable collection.
 
-Також HW3 містить альтернативний Pinecone backend. На цьому етапі реалізовано тільки створення й наповнення Pinecone index; пошук по ньому ще не реалізовано.
+Також HW3 містить альтернативний Pinecone backend: окремі скрипти створюють і наповнюють index та запускають semantic search для тих самих queries, що й HW2 і MongoDB.
 
 ## MongoDB Atlas Vector Search
 
@@ -120,7 +120,15 @@ env:
 PINECONE_API_KEY="..." make build-pinecone-index
 ```
 
+Перевірити semantic search у Pinecone:
+
+```bash
+PINECONE_API_KEY="..." make pinecone-semantic-search
+```
+
 Workflow `Build HW3 Pinecone Vector Index` запускається вручну через `workflow_dispatch`. Він створює index, якщо його ще немає, перевіряє dimension/metric існуючого index, upsert-ить поточні chunks у виділений namespace і видаляє з цього namespace stale vectors.
+
+Workflow `Check HW3 Pinecone Semantic Search` також запускається вручну. Він виконує ті самі 10 test queries з `top_k=5`, додає Markdown table до GitHub Actions summary і завантажує текстовий output та Markdown summary як artifact.
 
 ## Зміна pipeline після HW2
 
