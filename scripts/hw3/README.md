@@ -23,8 +23,7 @@ HW3 фокусується на покращенні retrieval pipeline післ
 
 - `MONGODB_DATABASE`: database name, default `supp-bro`;
 - `MONGODB_COLLECTION`: collection name, default `chunks`;
-- `MONGODB_VECTOR_INDEX`: vector index name, default `vector_index`;
-- `MONGODB_CLEANUP_STALE`: видаляти stale records для цього pipeline, default `true`.
+- `MONGODB_VECTOR_INDEX`: vector index name, default `vector_index`.
 
 Для локального запуску можна змінити `.env` у root папці repo:
 
@@ -33,7 +32,6 @@ MONGODB_URI=mongodb+srv://user:password@cluster.mongodb.net/
 MONGODB_DATABASE=supp-bro
 MONGODB_COLLECTION=chunks
 MONGODB_VECTOR_INDEX=vector_index
-MONGODB_CLEANUP_STALE=true
 ```
 
 Файл `.env` містить placeholder values. Для локального запуску заміни `MONGODB_URI` на свій MongoDB Atlas connection string.
@@ -52,10 +50,10 @@ Vector index використовує:
 
 ## Cleanup behavior для stale records
 
-За замовчуванням скрипт робить stale cleanup, але не очищає collection повністю.
+Скрипт завжди робить stale cleanup, але не очищає collection повністю.
 Він робить idempotent upsert по `chunk_id`, тому повторний запуск оновлює існуючі chunk documents або додає нові.
 
-Коли `MONGODB_CLEANUP_STALE=true`, скрипт видаляє тільки stale documents цього pipeline:
+Після upsert скрипт видаляє тільки stale documents цього pipeline:
 
 - document має `pipeline: "hw3_mongo_vector"`;
 - `chunk_id` більше не існує в поточних HW1 input chunks.
@@ -74,11 +72,9 @@ env:
   MONGODB_DATABASE: supp-bro
   MONGODB_COLLECTION: chunks
   MONGODB_VECTOR_INDEX: vector_index
-  MONGODB_CLEANUP_STALE: "true"
 ```
 
 У цьому repo GitHub Actions workflow для MongoDB запускається тільки вручну через `workflow_dispatch`.
-Під час запуску можна вибрати `cleanup_stale`; default value - `true`.
 
 Для GitHub-hosted runners треба врахувати Atlas IP allow-list: runner IP може змінюватися між запусками.
 Для стабільнішого доступу можна використати self-hosted runner зі static IP або окремо налаштувати Atlas network access для CI.

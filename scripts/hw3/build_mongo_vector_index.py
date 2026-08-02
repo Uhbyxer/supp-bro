@@ -36,7 +36,6 @@ DEFAULT_VECTOR_INDEX_NAME = "vector_index"
 PIPELINE_NAME = "hw3_mongo_vector"
 EMBEDDING_FIELD = "embedding"
 VECTOR_SIMILARITY = "dotProduct"
-DEFAULT_CLEANUP_STALE = True
 
 
 class MongoVectorIndexBackend:
@@ -150,21 +149,6 @@ def get_required_env(name: str) -> str:
     return value
 
 
-def parse_bool_env(name: str, default: bool = False) -> bool:
-    """
-    Parse a boolean environment variable.
-    """
-    value = os.environ.get(name)
-    if value is None:
-        return default
-    normalized_value = value.strip().lower()
-    if normalized_value in ("1", "true", "yes", "on"):
-        return True
-    if normalized_value in ("0", "false", "no", "off"):
-        return False
-    raise ValueError(f"{name} must be true or false.")
-
-
 def load_chunks(input_paths: list[Path]) -> list[dict[str, Any]]:
     """
     Load chunks from all configured HW1 chunk files.
@@ -222,7 +206,6 @@ def main() -> None:
     database_name = os.environ.get("MONGODB_DATABASE", DEFAULT_DATABASE_NAME)
     collection_name = os.environ.get("MONGODB_COLLECTION", DEFAULT_COLLECTION_NAME)
     vector_index_name = os.environ.get("MONGODB_VECTOR_INDEX", DEFAULT_VECTOR_INDEX_NAME)
-    cleanup_stale = parse_bool_env("MONGODB_CLEANUP_STALE", default=DEFAULT_CLEANUP_STALE)
 
     from pymongo import MongoClient
     from sentence_transformers import SentenceTransformer
@@ -269,10 +252,8 @@ def main() -> None:
 
     print("Uploading chunk documents...")
     bulk_result = backend.upsert_chunks(chunks, normalized_embeddings)
-    stale_deleted_count = 0
-    if cleanup_stale:
-        print("Deleting stale chunk documents...")
-        stale_deleted_count = backend.delete_stale_chunks(current_chunk_ids)
+    print("Deleting stale chunk documents...")
+    stale_deleted_count = backend.delete_stale_chunks(current_chunk_ids)
     print("Creating Atlas Vector Search index...")
     created_index_name = backend.create_vector_index()
     print()
@@ -299,7 +280,6 @@ def main() -> None:
     print(f"Vector field: {EMBEDDING_FIELD}")
     print(f"Vector dimension: {embedding_dimension}")
     print(f"Similarity: {VECTOR_SIMILARITY}")
-    print(f"Cleanup stale documents: {cleanup_stale}")
     print()
     print("MongoDB Atlas stores chunk text, metadata, and vectors in one collection.")
 
