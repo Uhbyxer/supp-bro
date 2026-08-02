@@ -11,6 +11,7 @@ This script reads:
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,7 @@ from jsonl_io import load_jsonl
 CHUNKS_PATH = PROJECT_ROOT / "data/hw2/processed/chunks_for_retrieval.jsonl"
 INDEX_PATH = PROJECT_ROOT / "data/hw2/index/faiss.index"
 TOP_K = 5
+DEFAULT_SUMMARY_PATH = PROJECT_ROOT / "data/hw2/output/faiss_semantic_search_summary.md"
 
 from search_queries import QUERIES
 
@@ -104,6 +106,48 @@ def print_results(query: str, results: list[dict[str, Any]]) -> None:
         print("-" * 80)
 
 
+def escape_markdown_table_cell(value: str) -> str:
+    """
+    Escape characters that break GitHub Markdown tables.
+    """
+    return value.replace("|", "\\|").replace("\n", " ")
+
+
+def format_results_for_table(results: list[dict[str, Any]]) -> str:
+    """
+    Format retrieved chunk ids and scores for a compact Markdown table cell.
+    """
+    if not results:
+        return "_No results_"
+
+    formatted_results = []
+    for rank, result in enumerate(results, start=1):
+        chunk_id = escape_markdown_table_cell(str(result["chunk_id"]))
+        formatted_results.append(f"{rank}. `{chunk_id}` (score: {result['score']:.4f})")
+    return "<br>".join(formatted_results)
+
+
+def write_markdown_summary(
+    query_results: list[tuple[str, list[dict[str, Any]]]],
+    output_path: Path,
+) -> None:
+    """
+    Write a GitHub Actions-friendly Markdown table with one row per query.
+    """
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "# HW2 FAISS Semantic Search Results",
+        "",
+        "| Query | Retrieved chunks and scores |",
+        "| --- | --- |",
+    ]
+    for query, results in query_results:
+        escaped_query = escape_markdown_table_cell(query)
+        lines.append(f"| {escaped_query} | {format_results_for_table(results)} |")
+    lines.append("")
+    output_path.write_text("\n".join(lines), encoding="utf-8")
+
+
 def main() -> None:
     if not CHUNKS_PATH.exists():
         raise FileNotFoundError(
@@ -128,7 +172,9 @@ def main() -> None:
     chunks = load_jsonl(CHUNKS_PATH)
     index = faiss.read_index(str(INDEX_PATH))
     model = SentenceTransformer(MODEL_NAME)
+    summary_path = Path(os.environ.get("FAISS_SEARCH_SUMMARY_PATH", DEFAULT_SUMMARY_PATH))
 
+    query_results: list[tuple[str, list[dict[str, Any]]]] = []
     for query in QUERIES:
         results = search(
             query=query,
@@ -137,8 +183,12 @@ def main() -> None:
             chunks=chunks,
             top_k=TOP_K,
         )
+        query_results.append((query, results))
         print_results(query, results)
         print()
+
+    write_markdown_summary(query_results, summary_path)
+    print(f"Markdown summary: {path_for_display(summary_path)}")
 
 
 if __name__ == "__main__":
