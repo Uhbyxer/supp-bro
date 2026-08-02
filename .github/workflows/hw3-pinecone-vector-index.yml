@@ -1,0 +1,31 @@
+name: Build HW3 Pinecone Vector Index
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-hw3-pinecone-vector-index:
+    runs-on: ubuntu-latest
+
+    env:
+      PYTHON_VERSION: "3.11"
+      PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+      PINECONE_INDEX: supp-bro
+      PINECONE_NAMESPACE: hw3-pinecone-vector
+      PINECONE_CLOUD: aws
+      PINECONE_REGION: us-east-1
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: make setup
+
+      - name: Build Pinecone vector index
+        run: make build-pinecone-index

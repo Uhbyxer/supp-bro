@@ -3,6 +3,8 @@
 HW3 фокусується на покращенні retrieval pipeline після локального FAISS baseline з HW2.
 Перше покращення - перенести semantic retrieval storage у MongoDB Atlas Vector Search, щоб chunk text, metadata та embeddings зберігалися в одній searchable collection.
 
+Також HW3 містить альтернативний Pinecone backend. На цьому етапі реалізовано тільки створення й наповнення Pinecone index; пошук по ньому ще не реалізовано.
+
 ## MongoDB Atlas Vector Search
 
 Скрипт `scripts/hw3/build_mongo_vector_index.py` готує MongoDB Atlas retrieval backend.
@@ -96,6 +98,29 @@ env:
 
 Для GitHub-hosted runners треба врахувати Atlas IP allow-list: runner IP може змінюватися між запусками.
 Для стабільнішого доступу можна використати self-hosted runner зі static IP або окремо налаштувати Atlas network access для CI.
+
+## Pinecone Vector Index
+
+`scripts/hw3/build_pinecone_vector_index.py` читає ті самі HW1 chunks, генерує нормалізовані 384-dimensional embeddings і idempotently завантажує їх у Pinecone serverless index.
+
+Обов'язковий GitHub repository Secret:
+
+- `PINECONE_API_KEY`: API key із Pinecone console.
+
+Опціональні environment variables:
+
+- `PINECONE_INDEX`: index name, default `supp-bro`;
+- `PINECONE_NAMESPACE`: namespace, default `hw3-pinecone-vector`;
+- `PINECONE_CLOUD`: serverless cloud, default `aws`;
+- `PINECONE_REGION`: serverless region, default `us-east-1`.
+
+Локальний запуск:
+
+```bash
+PINECONE_API_KEY="..." make build-pinecone-index
+```
+
+Workflow `Build HW3 Pinecone Vector Index` запускається вручну через `workflow_dispatch`. Він створює index, якщо його ще немає, перевіряє dimension/metric існуючого index, upsert-ить поточні chunks у виділений namespace і видаляє з цього namespace stale vectors.
 
 ## Зміна pipeline після HW2
 
