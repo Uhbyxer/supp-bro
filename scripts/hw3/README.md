@@ -130,6 +130,21 @@ Workflow `Build HW3 Pinecone Vector Index` запускається вручну
 
 Workflow `Check HW3 Pinecone Semantic Search` також запускається вручну. Він виконує ті самі 10 test queries з `top_k=5`, додає Markdown table до GitHub Actions summary і завантажує текстовий output та Markdown summary як artifact.
 
+## Pinecone retrieval evaluation
+
+`scripts/hw3/pinecone_retrieval_evaluation.py` порівнює два pipelines на тих самих 10 queries:
+
+- baseline: Pinecone vector search без filter з `top_k=5`;
+- improved: metadata filter `source=pages|issues`, Pinecone `top_k=15`, reranking моделлю `cross-encoder/ms-marco-MiniLM-L-6-v2` і фінальний `top_k=5`.
+
+Для обох варіантів скрипт рахує Top-1 accuracy, Hit@5, MRR та Precision@5 відносно явно заданих relevant chunk IDs. Локальний запуск:
+
+```bash
+PINECONE_API_KEY="..." make pinecone-retrieval-evaluation
+```
+
+Workflow `Evaluate HW3 Pinecone Retrieval` додає порівняльну таблицю до GitHub Actions summary та завантажує повний JSON і Markdown reports як artifact.
+
 ## Зміна pipeline після HW2
 
 HW2 зберігає vectors локально у FAISS, а chunk text/metadata окремо в JSONL.

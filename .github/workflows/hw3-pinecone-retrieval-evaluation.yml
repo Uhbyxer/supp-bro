@@ -1,0 +1,36 @@
+name: Evaluate HW3 Pinecone Retrieval
+
+on:
+  workflow_dispatch:
+
+jobs:
+  evaluate-hw3-pinecone-retrieval:
+    runs-on: ubuntu-latest
+    env:
+      PYTHON_VERSION: "3.11"
+      PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+      PINECONE_INDEX: supp-bro
+      PINECONE_NAMESPACE: hw3-pinecone-vector
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install dependencies
+        run: make setup
+      - name: Compare baseline and improved retrieval
+        run: make pinecone-retrieval-evaluation
+      - name: Add comparison to job summary
+        if: always()
+        run: cat data/hw3/output/pinecone_retrieval_evaluation.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload evaluation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pinecone-retrieval-evaluation
+          path: |
+            data/hw3/output/pinecone_retrieval_evaluation.json
+            data/hw3/output/pinecone_retrieval_evaluation.md
