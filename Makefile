@@ -3,7 +3,7 @@ VENV ?= .venv
 PIP := $(VENV)/bin/pip
 PYTHON_BIN := $(VENV)/bin/python
 
-.PHONY: setup download-issues build-index semantic-search build-mongo-index mongo-semantic-search build-pinecone-index pinecone-semantic-search pinecone-retrieval-evaluation
+.PHONY: setup download-issues build-index semantic-search build-mongo-index mongo-semantic-search build-pinecone-index pinecone-semantic-search pinecone-retrieval-evaluation pinecone-hybrid-evaluation
 setup:
 	$(PYTHON) -m venv $(VENV)
 	$(PYTHON_BIN) -m pip install --upgrade pip
@@ -33,3 +33,6 @@ pinecone-semantic-search:
 
 pinecone-retrieval-evaluation:
 	$(PYTHON_BIN) scripts/hw3/pinecone_retrieval_evaluation.py
+
+pinecone-hybrid-evaluation:
+	$(PYTHON_BIN) scripts/hw3/pinecone_hybrid_evaluation.py

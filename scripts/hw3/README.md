@@ -145,6 +145,24 @@ PINECONE_API_KEY="..." make pinecone-retrieval-evaluation
 
 Workflow `Evaluate HW3 Pinecone Retrieval` додає порівняльну таблицю до GitHub Actions summary та завантажує повний JSON і Markdown reports як artifact.
 
+## Pinecone + BM25 hybrid retrieval evaluation
+
+`scripts/hw3/pinecone_hybrid_evaluation.py` окремо порівнює baseline з hybrid search без fuzzy matching:
+
+- baseline: Pinecone vector search без filter з `top_k=5`;
+- hybrid: metadata filter `source=pages|issues`, Pinecone dense `top_k=15` і локальний BM25 `top_k=15` над тим самим filtered набором чанків;
+- Reciprocal Rank Fusion з `k=60` об'єднує обидва rankings у фінальний `top_k=5`.
+
+BM25 індексує `title + text`, а tokenizer зберігає технічні identifiers на кшталт `DBZ-8922`. Dense score і BM25 score напряму не змішуються: RRF використовує позиції чанків у двох rankings.
+
+Локальний запуск:
+
+```bash
+PINECONE_API_KEY="..." make pinecone-hybrid-evaluation
+```
+
+Workflow `Evaluate HW3 Pinecone Hybrid Retrieval` додає порівняння до GitHub Actions summary та завантажує JSON і Markdown reports як artifact.
+
 ## Зміна pipeline після HW2
 
 HW2 зберігає vectors локально у FAISS, а chunk text/metadata окремо в JSONL.
