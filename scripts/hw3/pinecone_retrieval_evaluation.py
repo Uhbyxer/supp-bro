@@ -139,7 +139,7 @@ def format_chunk_ids(results: list[dict[str, Any]]) -> str:
     if not results:
         return "—"
     return "<br>".join(
-        f"{rank}. \`{escape_markdown(result['chunk_id'])}\`"
+        f"{rank}. `{escape_markdown(result['chunk_id'])}`"
         for rank, result in enumerate(results, 1)
     )
 
