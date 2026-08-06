@@ -19,6 +19,7 @@ from pinecone_retrieval_evaluation import (
     compact,
     escape_markdown,
     first_relevant_rank,
+    format_chunk_ids,
     required_env,
     search,
 )
@@ -171,12 +172,20 @@ def write_outputs(report: dict[str, Any], json_path: Path, summary_path: Path) -
         f"| Hybrid | {hybrid['top_1']:.1%} | {hybrid['hit_at_5']:.1%} | {hybrid['mrr']:.3f} | {hybrid['precision_at_5']:.1%} |", "",
         f"**Verdict:** {report['verdict']}", "",
     ]
-    lines.extend(["| Query | Expected chunks | Baseline first relevant rank | Hybrid first relevant rank |", "| --- | --- | ---: | ---: |"])
+    lines.extend([
+        "| Query | Expected chunks | Baseline retrieved chunks | Hybrid retrieved chunks | Baseline first relevant rank | Hybrid first relevant rank |",
+        "| --- | --- | --- | --- | ---: | ---: |",
+    ])
     for row in report["queries"]:
         baseline_rank = row["baseline"]["first_relevant_rank"] or "—"
         hybrid_rank = row["hybrid"]["first_relevant_rank"] or "—"
         expected = "<br>".join(f"`{chunk_id}`" for chunk_id in row["relevant_chunk_ids"])
-        lines.append(f"| {escape_markdown(row['query'])} | {expected} | {baseline_rank} | {hybrid_rank} |")
+        baseline_results = format_chunk_ids(row["baseline"]["results"])
+        hybrid_results = format_chunk_ids(row["hybrid"]["results"])
+        lines.append(
+            f"| {escape_markdown(row['query'])} | {expected} | {baseline_results} | "
+            f"{hybrid_results} | {baseline_rank} | {hybrid_rank} |"
+        )
     summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
