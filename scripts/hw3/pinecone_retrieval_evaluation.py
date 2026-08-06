@@ -135,6 +135,15 @@ def escape_markdown(value: str) -> str:
     return value.replace("|", "\\|").replace("\n", " ")
 
 
+def format_chunk_ids(results: list[dict[str, Any]]) -> str:
+    if not results:
+        return "—"
+    return "<br>".join(
+        f"{rank}. \`{escape_markdown(result['chunk_id'])}\`"
+        for rank, result in enumerate(results, 1)
+    )
+
+
 def write_outputs(report: dict[str, Any], json_path: Path, summary_path: Path) -> None:
     json_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.parent.mkdir(parents=True, exist_ok=True)
@@ -150,12 +159,20 @@ def write_outputs(report: dict[str, Any], json_path: Path, summary_path: Path) -
         f"| Improved | {improved['top_1']:.1%} | {improved['hit_at_5']:.1%} | {improved['mrr']:.3f} | {improved['precision_at_5']:.1%} |", "",
         f"**Verdict:** {report['verdict']}", "",
     ]
-    lines.extend(["| Query | Expected chunks | Baseline first relevant rank | Improved first relevant rank |", "| --- | --- | ---: | ---: |"])
+    lines.extend([
+        "| Query | Expected chunks | Baseline retrieved chunks | Improved retrieved chunks | Baseline first relevant rank | Improved first relevant rank |",
+        "| --- | --- | --- | --- | ---: | ---: |",
+    ])
     for row in report["queries"]:
         baseline_rank = row["baseline"]["first_relevant_rank"] or "—"
         improved_rank = row["improved"]["first_relevant_rank"] or "—"
         expected = "<br>".join(f"`{chunk_id}`" for chunk_id in row["relevant_chunk_ids"])
-        lines.append(f"| {escape_markdown(row['query'])} | {expected} | {baseline_rank} | {improved_rank} |")
+        baseline_results = format_chunk_ids(row["baseline"]["results"])
+        improved_results = format_chunk_ids(row["improved"]["results"])
+        lines.append(
+            f"| {escape_markdown(row['query'])} | {expected} | {baseline_results} | "
+            f"{improved_results} | {baseline_rank} | {improved_rank} |"
+        )
     summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
