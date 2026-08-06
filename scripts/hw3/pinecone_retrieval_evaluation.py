@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from evaluation_comparison import compare_with_previous, previous_comparison_markdown
+
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -17,6 +19,7 @@ DEFAULT_NAMESPACE = "hw3-pinecone-vector"
 BASELINE_K, CANDIDATE_K, FINAL_K = 5, 15, 5
 DEFAULT_JSON_PATH = PROJECT_ROOT / "data/hw3/output/pinecone_retrieval_evaluation.json"
 DEFAULT_SUMMARY_PATH = PROJECT_ROOT / "data/hw3/output/pinecone_retrieval_evaluation.md"
+DEFAULT_PREVIOUS_JSON_PATH = PROJECT_ROOT / "data/hw3/previous/pinecone_retrieval_evaluation.json"
 
 
 @dataclass(frozen=True)
@@ -206,8 +209,9 @@ def write_outputs(report: dict[str, Any], json_path: Path, summary_path: Path) -
         f"| Baseline | {baseline['top_1']:.1%} | {baseline['hit_at_5']:.1%} | {baseline['mrr']:.3f} | {baseline['precision_at_5']:.1%} |",
         f"| Improved | {improved['top_1']:.1%} | {improved['hit_at_5']:.1%} | {improved['mrr']:.3f} | {improved['precision_at_5']:.1%} |", "",
         f"**Verdict:** {report['verdict']}", "",
-        "| Query | Filter | Baseline first relevant rank | Improved first relevant rank |", "| --- | --- | ---: | ---: |",
     ]
+    lines.extend(previous_comparison_markdown(report["previous_run_comparison"], "metadata filter + cross-encoder"))
+    lines.extend(["| Query | Filter | Baseline first relevant rank | Improved first relevant rank |", "| --- | --- | ---: | ---: |"])
     for row in report["queries"]:
         baseline_rank = row["baseline"]["first_relevant_rank"] or "—"
         improved_rank = row["improved"]["first_relevant_rank"] or "—"
@@ -230,10 +234,14 @@ def main() -> None:
     namespace = os.environ.get("PINECONE_NAMESPACE", DEFAULT_NAMESPACE)
     json_path = Path(os.environ.get("PINECONE_EVALUATION_JSON_PATH", DEFAULT_JSON_PATH))
     summary_path = Path(os.environ.get("PINECONE_EVALUATION_SUMMARY_PATH", DEFAULT_SUMMARY_PATH))
+    previous_json_path = Path(os.environ.get("PINECONE_EVALUATION_PREVIOUS_JSON_PATH", DEFAULT_PREVIOUS_JSON_PATH))
     model = SentenceTransformer(EMBEDDING_MODEL)
     reranker = CrossEncoder(RERANKER_MODEL)
     index = Pinecone(api_key=required_env("PINECONE_API_KEY")).Index(index_name)
     report = evaluate(model, reranker, index, namespace)
+    report["previous_run_comparison"] = compare_with_previous(
+        report["aggregate"]["improved"], previous_json_path, "improved"
+    )
     write_outputs(report, json_path, summary_path)
     print(json.dumps(report["aggregate"], indent=2))
     print(report["verdict"])

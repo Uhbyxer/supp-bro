@@ -145,15 +145,14 @@ PINECONE_API_KEY="..." make pinecone-retrieval-evaluation
 
 Workflow `Evaluate HW3 Pinecone Retrieval` додає порівняльну таблицю до GitHub Actions summary та завантажує повний JSON і Markdown reports як artifact.
 
-## Pinecone + BM25 hybrid retrieval evaluation
+## Pinecone hybrid retrieval evaluation
 
-`scripts/hw3/pinecone_hybrid_evaluation.py` окремо порівнює baseline з hybrid search без fuzzy matching:
+`scripts/hw3/pinecone_hybrid_evaluation.py` порівнює baseline з hybrid pipeline:
 
-- baseline: Pinecone vector search без filter з `top_k=5`;
-- hybrid: metadata filter `source=pages|issues`, Pinecone dense `top_k=15` і локальний BM25 `top_k=15` над тим самим filtered набором чанків;
-- Reciprocal Rank Fusion з `k=60` об'єднує обидва rankings у фінальний `top_k=5`.
-
-BM25 індексує `title + text`, а tokenizer зберігає технічні identifiers на кшталт `DBZ-8922`. Dense score і BM25 score напряму не змішуються: RRF використовує позиції чанків у двох rankings.
+- metadata-filtered Pinecone Top-15;
+- локальний BM25 Top-15 по всіх чанках, що пройшли той самий metadata filter;
+- Reciprocal Rank Fusion (`k=60`);
+- фінальний Top-5.
 
 Локальний запуск:
 
@@ -161,8 +160,12 @@ BM25 індексує `title + text`, а tokenizer зберігає техніч
 PINECONE_API_KEY="..." make pinecone-hybrid-evaluation
 ```
 
-Workflow `Evaluate HW3 Pinecone Hybrid Retrieval` додає порівняння до GitHub Actions summary та завантажує JSON і Markdown reports як artifact.
+Обидва evaluation workflows перед запуском намагаються завантажити JSON report з попереднього успішного запуску цього самого workflow. У GitHub Actions summary показуються дві оцінки:
 
+- поточний improved/hybrid pipeline проти незмінного Pinecone baseline у межах одного запуску;
+- поточні aggregate metrics проти попереднього успішного запуску, включно з delta та висновком про покращення, regression або відсутність змін.
+
+Якщо попереднього artifact ще немає або він уже expired, workflow не падає: поточний запуск позначається як перший comparison baseline.
 ## Зміна pipeline після HW2
 
 HW2 зберігає vectors локально у FAISS, а chunk text/metadata окремо в JSONL.
