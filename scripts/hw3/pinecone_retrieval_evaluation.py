@@ -5,11 +5,15 @@ from __future__ import annotations
 import json
 import os
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from evaluation_comparison import compare_with_previous, previous_comparison_markdown
+from pages_evaluation_reference import (
+    BASELINE_RUN_ID,
+    BASELINE_RUN_URL,
+    CASES,
+    EXPECTED_RESULTS_URL,
+)
 
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
@@ -19,72 +23,6 @@ DEFAULT_NAMESPACE = "hw3-pinecone-vector"
 BASELINE_K, CANDIDATE_K, FINAL_K = 5, 15, 5
 DEFAULT_JSON_PATH = PROJECT_ROOT / "data/hw3/output/pinecone_retrieval_evaluation.json"
 DEFAULT_SUMMARY_PATH = PROJECT_ROOT / "data/hw3/output/pinecone_retrieval_evaluation.md"
-DEFAULT_PREVIOUS_JSON_PATH = PROJECT_ROOT / "data/hw3/previous/pinecone_retrieval_evaluation.json"
-
-
-@dataclass(frozen=True)
-class EvaluationCase:
-    query: str
-    metadata_filter: dict[str, Any]
-    relevant_ids: frozenset[str]
-
-
-def issue_chunks(issue_id: int, count: int) -> frozenset[str]:
-    return frozenset(f"issues:dbz:{issue_id}:chunk_{number:03d}" for number in range(1, count + 1))
-
-
-CASES = [
-    EvaluationCase(
-        "How should Debezium persist connector offsets and schema history after a restart?",
-        {"source": {"$eq": "pages"}},
-        frozenset({"pages:configuration:storage:overview", "pages:configuration:storage:kafka", "pages:configuration:storage:file"}),
-    ),
-    EvaluationCase(
-        "Which storage options are suitable for cloud deployments of Debezium state?",
-        {"source": {"$eq": "pages"}},
-        frozenset({"pages:configuration:storage:amazon_s3", "pages:configuration:storage:azure_blob_storage"}),
-    ),
-    EvaluationCase(
-        "What is the difference between Kafka, file, and memory offset storage in Debezium?",
-        {"source": {"$eq": "pages"}},
-        frozenset({"pages:configuration:storage:kafka", "pages:configuration:storage:file", "pages:configuration:storage:memory"}),
-    ),
-    EvaluationCase(
-        "How does Debezium achieve exactly-once delivery with Kafka Connect?",
-        {"source": {"$eq": "pages"}},
-        frozenset({"pages:configuration:eos:overview", "pages:configuration:eos:kafka_connect_exactly_once_support_for_source_connector", "pages:configuration:eos:debezium_connectors_supporting_exactly_once_delivery"}),
-    ),
-    EvaluationCase(
-        "What must be configured before enabling exactly-once support for source connectors?",
-        {"source": {"$eq": "pages"}},
-        frozenset({"pages:configuration:eos:configuration"}),
-    ),
-    EvaluationCase(
-        "Postgres connector resumes from an old or invalid LSN after restart and replication slot validation looks wrong",
-        {"source": {"$eq": "issues"}},
-        issue_chunks(1407, 12),
-    ),
-    EvaluationCase(
-        "Debezium connector crashes when two table columns have the same name except for letter case",
-        {"source": {"$eq": "issues"}},
-        issue_chunks(4, 6),
-    ),
-    EvaluationCase(
-        "MongoDB connector backpressure error says unable to acquire buffer lock and queue is full",
-        {"source": {"$eq": "issues"}},
-        issue_chunks(3, 12),
-    ),
-    EvaluationCase(
-        "JDBC sink writes records in the correct topic order but batch processing causes foreign key violations",
-        {"source": {"$eq": "issues"}},
-        issue_chunks(73, 10),
-    ),
-    EvaluationCase(
-        "Which issue is only about migrating tests from JUnit4 to a newer JUnit version?",
-        {"source": {"$eq": "issues"}},
-        frozenset({"issues:dbz:11:chunk_001"}),
-    ),
-]
 
 
 def required_env(name: str) -> str:
@@ -185,7 +123,8 @@ def evaluate(model: Any, reranker: Any, index: Any, namespace: str) -> dict[str,
     else:
         verdict = "No aggregate retrieval improvement was demonstrated."
     return {
-        "configuration": {"embedding_model": EMBEDDING_MODEL, "reranker_model": RERANKER_MODEL, "baseline_k": BASELINE_K, "candidate_k": CANDIDATE_K, "final_k": FINAL_K},
+        "configuration": {"embedding_model": EMBEDDING_MODEL, "reranker_model": RERANKER_MODEL, "baseline_k": BASELINE_K, "candidate_k": CANDIDATE_K, "final_k": FINAL_K, "baseline_run_id": BASELINE_RUN_ID},
+        "references": {"baseline_run": BASELINE_RUN_URL, "expected_results": EXPECTED_RESULTS_URL},
         "aggregate": {"baseline": baseline_metrics, "improved": improved_metrics, "delta": delta},
         "verdict": verdict,
         "queries": rows,
@@ -203,19 +142,20 @@ def write_outputs(report: dict[str, Any], json_path: Path, summary_path: Path) -
     baseline, improved = report["aggregate"]["baseline"], report["aggregate"]["improved"]
     lines = [
         "# Pinecone retrieval: baseline vs improved", "",
-        f"Baseline: unfiltered vector Top-{BASELINE_K}.  ",
+        f"Baseline: old unfiltered Pinecone Top-{BASELINE_K} pipeline used in [run {BASELINE_RUN_ID}]({BASELINE_RUN_URL}).  ",
+        f"Ground truth: expected chunk IDs from [HW2 Pages]({EXPECTED_RESULTS_URL}).  ",
         f"Improved: metadata-filtered vector Top-{CANDIDATE_K}, cross-encoder reranking, final Top-{FINAL_K}.", "",
         "| Pipeline | Top-1 | Hit@5 | MRR | Precision@5 |", "| --- | ---: | ---: | ---: | ---: |",
         f"| Baseline | {baseline['top_1']:.1%} | {baseline['hit_at_5']:.1%} | {baseline['mrr']:.3f} | {baseline['precision_at_5']:.1%} |",
         f"| Improved | {improved['top_1']:.1%} | {improved['hit_at_5']:.1%} | {improved['mrr']:.3f} | {improved['precision_at_5']:.1%} |", "",
         f"**Verdict:** {report['verdict']}", "",
     ]
-    lines.extend(previous_comparison_markdown(report["previous_run_comparison"], "metadata filter + cross-encoder"))
-    lines.extend(["| Query | Filter | Baseline first relevant rank | Improved first relevant rank |", "| --- | --- | ---: | ---: |"])
+    lines.extend(["| Query | Expected chunks | Baseline first relevant rank | Improved first relevant rank |", "| --- | --- | ---: | ---: |"])
     for row in report["queries"]:
         baseline_rank = row["baseline"]["first_relevant_rank"] or "—"
         improved_rank = row["improved"]["first_relevant_rank"] or "—"
-        lines.append(f"| {escape_markdown(row['query'])} | `{json.dumps(row['metadata_filter'])}` | {baseline_rank} | {improved_rank} |")
+        expected = "<br>".join(f"`{chunk_id}`" for chunk_id in row["relevant_chunk_ids"])
+        lines.append(f"| {escape_markdown(row['query'])} | {expected} | {baseline_rank} | {improved_rank} |")
     summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -234,14 +174,10 @@ def main() -> None:
     namespace = os.environ.get("PINECONE_NAMESPACE", DEFAULT_NAMESPACE)
     json_path = Path(os.environ.get("PINECONE_EVALUATION_JSON_PATH", DEFAULT_JSON_PATH))
     summary_path = Path(os.environ.get("PINECONE_EVALUATION_SUMMARY_PATH", DEFAULT_SUMMARY_PATH))
-    previous_json_path = Path(os.environ.get("PINECONE_EVALUATION_PREVIOUS_JSON_PATH", DEFAULT_PREVIOUS_JSON_PATH))
     model = SentenceTransformer(EMBEDDING_MODEL)
     reranker = CrossEncoder(RERANKER_MODEL)
     index = Pinecone(api_key=required_env("PINECONE_API_KEY")).Index(index_name)
     report = evaluate(model, reranker, index, namespace)
-    report["previous_run_comparison"] = compare_with_previous(
-        report["aggregate"]["improved"], previous_json_path, "improved"
-    )
     write_outputs(report, json_path, summary_path)
     print(json.dumps(report["aggregate"], indent=2))
     print(report["verdict"])

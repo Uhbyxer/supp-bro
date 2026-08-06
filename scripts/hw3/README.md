@@ -132,12 +132,12 @@ Workflow `Check HW3 Pinecone Semantic Search` також запускаєтьс�
 
 ## Pinecone retrieval evaluation
 
-`scripts/hw3/pinecone_retrieval_evaluation.py` порівнює два pipelines на тих самих 10 queries:
+`scripts/hw3/pinecone_retrieval_evaluation.py` порівнює два pipelines на 5 queries із секції `Pages` у HW2:
 
-- baseline: Pinecone vector search без filter з `top_k=5`;
-- improved: metadata filter `source=pages|issues`, Pinecone `top_k=15`, reranking моделлю `cross-encoder/ms-marco-MiniLM-L-6-v2` і фінальний `top_k=5`.
+- baseline: старий unfiltered Pinecone Top-5 pipeline, який використовувався в GitHub Actions run `30763956563`;
+- improved: metadata filter `source=pages`, Pinecone `top_k=15`, reranking моделлю `cross-encoder/ms-marco-MiniLM-L-6-v2` і фінальний `top_k=5`.
 
-Для обох варіантів скрипт рахує Top-1 accuracy, Hit@5, MRR та Precision@5 відносно явно заданих relevant chunk IDs. Локальний запуск:
+Ground truth повністю повторює очікувані `chunk_id` з таблиці `scripts/hw2#pages`. Для обох варіантів скрипт рахує Top-1 accuracy, Hit@5, MRR та Precision@5 відносно цих IDs. Локальний запуск:
 
 ```bash
 PINECONE_API_KEY="..." make pinecone-retrieval-evaluation
@@ -147,7 +147,7 @@ Workflow `Evaluate HW3 Pinecone Retrieval` додає порівняльну т�
 
 ## Pinecone hybrid retrieval evaluation
 
-`scripts/hw3/pinecone_hybrid_evaluation.py` порівнює baseline з hybrid pipeline:
+`scripts/hw3/pinecone_hybrid_evaluation.py` порівнює той самий старий baseline pipeline з run `30763956563` з hybrid pipeline на тих самих 5 `Pages` queries:
 
 - metadata-filtered Pinecone Top-15;
 - локальний BM25 Top-15 по всіх чанках, що пройшли той самий metadata filter;
@@ -160,12 +160,11 @@ Workflow `Evaluate HW3 Pinecone Retrieval` додає порівняльну т�
 PINECONE_API_KEY="..." make pinecone-hybrid-evaluation
 ```
 
-Обидва evaluation workflows перед запуском намагаються завантажити JSON report з попереднього успішного запуску цього самого workflow. У GitHub Actions summary показуються дві оцінки:
+Обидва evaluation workflows показують у GitHub Actions summary:
 
-- поточний improved/hybrid pipeline проти незмінного Pinecone baseline у межах одного запуску;
-- поточні aggregate metrics проти попереднього успішного запуску, включно з delta та висновком про покращення, regression або відсутність змін.
-
-Якщо попереднього artifact ще немає або він уже expired, workflow не падає: поточний запуск позначається як перший comparison baseline.
+- aggregate metrics старого pipeline з run `30763956563` і нового pipeline;
+- delta та висновок про покращення або regression;
+- для кожного query — expected chunks із HW2 Pages та позицію першого релевантного baseline/new результату.
 ## Зміна pipeline після HW2
 
 HW2 зберігає vectors локально у FAISS, а chunk text/metadata окремо в JSONL.
