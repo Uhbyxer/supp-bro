@@ -2,6 +2,16 @@ name: Evaluate HW3 Pinecone Retrieval
 
 on:
   workflow_dispatch:
+    inputs:
+      source:
+        description: Limit Pinecone retrieval to a source (empty searches all sources)
+        required: false
+        type: choice
+        default: ""
+        options:
+          - ""
+          - pages
+          - issues
 
 permissions:
   contents: read
@@ -14,6 +24,7 @@ jobs:
       PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
       PINECONE_INDEX: supp-bro
       PINECONE_NAMESPACE: hw3-pinecone-vector
+      PINECONE_SOURCE: ${{ inputs.source }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
