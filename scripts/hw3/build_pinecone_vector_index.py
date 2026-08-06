@@ -24,7 +24,7 @@ INPUT_CHUNK_PATHS = [
     HW1_PROCESSED_DIR / "chunks_medium.json",
 ]
 DEFAULT_INDEX_NAME = "supp-bro"
-DEFAULT_NAMESPACE = "supp-bro-pinecone-vector"
+DEFAULT_NAMESPACE = "hw3-pinecone-vector"
 DEFAULT_CLOUD = "aws"
 DEFAULT_REGION = "us-east-1"
 VECTOR_METRIC = "cosine"
@@ -130,7 +130,7 @@ def ensure_index(
 
 
 def delete_stale_vectors(index: Any, namespace: str, current_ids: set[str]) -> int:
-    existing_ids = [vector.id for page in index.list(namespace=namespace) for vector in page]
+    existing_ids = [vector_id for page in index.list(namespace=namespace) for vector_id in page]
     stale_ids = [vector_id for vector_id in existing_ids if vector_id not in current_ids]
     for stale_batch in batches(stale_ids, DELETE_BATCH_SIZE):
         index.delete(ids=stale_batch, namespace=namespace)

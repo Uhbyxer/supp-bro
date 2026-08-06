@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from evaluation_comparison import compare_with_previous, previous_comparison_markdown
+
 from pinecone_retrieval_evaluation import (
     BASELINE_K,
     CASES,
@@ -30,6 +32,7 @@ CANDIDATE_K = 15
 RRF_K = 60
 DEFAULT_JSON_PATH = PROJECT_ROOT / "data/hw3/output/pinecone_hybrid_evaluation.json"
 DEFAULT_SUMMARY_PATH = PROJECT_ROOT / "data/hw3/output/pinecone_hybrid_evaluation.md"
+DEFAULT_PREVIOUS_JSON_PATH = PROJECT_ROOT / "data/hw3/previous/pinecone_hybrid_evaluation.json"
 CHUNK_PATHS = [
     PROJECT_ROOT / "data/hw1/processed/chunks_large.jsonl",
     PROJECT_ROOT / "data/hw1/processed/chunks_medium.json",
@@ -162,8 +165,9 @@ def write_outputs(report: dict[str, Any], json_path: Path, summary_path: Path) -
         f"| Baseline | {baseline['top_1']:.1%} | {baseline['hit_at_5']:.1%} | {baseline['mrr']:.3f} | {baseline['precision_at_5']:.1%} |",
         f"| Hybrid | {hybrid['top_1']:.1%} | {hybrid['hit_at_5']:.1%} | {hybrid['mrr']:.3f} | {hybrid['precision_at_5']:.1%} |", "",
         f"**Verdict:** {report['verdict']}", "",
-        "| Query | Filter | Baseline first relevant rank | Hybrid first relevant rank |", "| --- | --- | ---: | ---: |",
     ]
+    lines.extend(previous_comparison_markdown(report["previous_run_comparison"], "metadata filter + BM25 + RRF"))
+    lines.extend(["| Query | Filter | Baseline first relevant rank | Hybrid first relevant rank |", "| --- | --- | ---: | ---: |"])
     for row in report["queries"]:
         baseline_rank = row["baseline"]["first_relevant_rank"] or "—"
         hybrid_rank = row["hybrid"]["first_relevant_rank"] or "—"
@@ -186,9 +190,13 @@ def main() -> None:
     namespace = os.environ.get("PINECONE_NAMESPACE", DEFAULT_NAMESPACE)
     json_path = Path(os.environ.get("PINECONE_HYBRID_JSON_PATH", DEFAULT_JSON_PATH))
     summary_path = Path(os.environ.get("PINECONE_HYBRID_SUMMARY_PATH", DEFAULT_SUMMARY_PATH))
+    previous_json_path = Path(os.environ.get("PINECONE_HYBRID_PREVIOUS_JSON_PATH", DEFAULT_PREVIOUS_JSON_PATH))
     model = SentenceTransformer(EMBEDDING_MODEL)
     index = Pinecone(api_key=required_env("PINECONE_API_KEY")).Index(index_name)
     report = evaluate(model, index, namespace, load_chunks())
+    report["previous_run_comparison"] = compare_with_previous(
+        report["aggregate"]["hybrid"], previous_json_path, "hybrid"
+    )
     write_outputs(report, json_path, summary_path)
     print(json.dumps(report["aggregate"], indent=2))
     print(report["verdict"])
