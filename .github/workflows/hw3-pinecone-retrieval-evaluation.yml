@@ -3,11 +3,15 @@ name: Evaluate HW3 Pinecone Retrieval
 on:
   workflow_dispatch:
     inputs:
-      filter_by_domain:
-        description: Filter Pinecone retrieval to the expected source domain (source=pages)
-        required: true
-        type: boolean
-        default: false
+      source:
+        description: Limit Pinecone retrieval to a source (empty searches all sources)
+        required: false
+        type: choice
+        default: ""
+        options:
+          - ""
+          - pages
+          - issues
 
 permissions:
   contents: read
@@ -20,7 +24,7 @@ jobs:
       PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
       PINECONE_INDEX: supp-bro
       PINECONE_NAMESPACE: hw3-pinecone-vector
-      PINECONE_FILTER_BY_DOMAIN: ${{ inputs.filter_by_domain }}
+      PINECONE_SOURCE: ${{ inputs.source }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
