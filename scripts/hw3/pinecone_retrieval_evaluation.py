@@ -20,7 +20,7 @@ RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INDEX = "supp-bro"
 DEFAULT_NAMESPACE = "hw3-pinecone-vector"
-DEFAULT_FILTER_BY_DOMAIN = False
+ALLOWED_SOURCES = frozenset({"pages", "issues"})
 BASELINE_K, CANDIDATE_K, FINAL_K = 5, 15, 5
 DEFAULT_JSON_PATH = PROJECT_ROOT / "data/hw3/output/pinecone_retrieval_evaluation.json"
 DEFAULT_SUMMARY_PATH = PROJECT_ROOT / "data/hw3/output/pinecone_retrieval_evaluation.md"
@@ -33,16 +33,14 @@ def required_env(name: str) -> str:
     return value
 
 
-def boolean_env(name: str, default: bool) -> bool:
-    value = os.environ.get(name)
-    if value is None:
-        return default
-    normalized = value.strip().lower()
-    if normalized in {"1", "true", "yes", "on"}:
-        return True
-    if normalized in {"0", "false", "no", "off"}:
-        return False
-    raise ValueError(f"{name} must be a boolean value, got: {value}")
+def source_env(name: str) -> str | None:
+    value = os.environ.get(name, "").strip().lower()
+    if not value:
+        return None
+    if value not in ALLOWED_SOURCES:
+        allowed = ", ".join(sorted(ALLOWED_SOURCES))
+        raise ValueError(f"{name} must be empty or one of: {allowed}; got: {value}")
+    return value
 
 
 def search(query: str, model: Any, index: Any, namespace: str, top_k: int, metadata_filter: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -101,10 +99,10 @@ def compact(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [{key: value for key, value in result.items() if key != "text"} for result in results]
 
 
-def evaluate(model: Any, reranker: Any, index: Any, namespace: str, filter_by_domain: bool) -> dict[str, Any]:
+def evaluate(model: Any, reranker: Any, index: Any, namespace: str, source: str | None) -> dict[str, Any]:
     rows = []
     for case in CASES:
-        metadata_filter = case.metadata_filter if filter_by_domain else None
+        metadata_filter = {"source": source} if source else None
         baseline = search(case.query, model, index, namespace, BASELINE_K, metadata_filter)
         candidates = search(case.query, model, index, namespace, CANDIDATE_K, metadata_filter)
         improved = rerank(case.query, candidates, reranker)[:FINAL_K]
@@ -137,7 +135,7 @@ def evaluate(model: Any, reranker: Any, index: Any, namespace: str, filter_by_do
     else:
         verdict = "No aggregate retrieval improvement was demonstrated."
     return {
-        "configuration": {"embedding_model": EMBEDDING_MODEL, "reranker_model": RERANKER_MODEL, "baseline_k": BASELINE_K, "candidate_k": CANDIDATE_K, "final_k": FINAL_K, "filter_by_domain": filter_by_domain, "baseline_run_id": BASELINE_RUN_ID},
+        "configuration": {"embedding_model": EMBEDDING_MODEL, "reranker_model": RERANKER_MODEL, "baseline_k": BASELINE_K, "candidate_k": CANDIDATE_K, "final_k": FINAL_K, "source": source, "baseline_run_id": BASELINE_RUN_ID},
         "references": {"baseline_run": BASELINE_RUN_URL, "expected_results": EXPECTED_RESULTS_URL},
         "aggregate": {"baseline": baseline_metrics, "improved": improved_metrics, "delta": delta},
         "verdict": verdict,
@@ -167,11 +165,11 @@ def write_outputs(report: dict[str, Any], json_path: Path, summary_path: Path) -
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     baseline, improved = report["aggregate"]["baseline"], report["aggregate"]["improved"]
-    filter_by_domain = report["configuration"]["filter_by_domain"]
-    filter_description = "enabled (`source=pages`)" if filter_by_domain else "disabled"
+    source = report["configuration"]["source"]
+    filter_description = f"`source={source}`" if source else "disabled (all sources)"
     lines = [
         "# Pinecone retrieval: baseline vs improved", "",
-        f"Domain filter: **{filter_description}**. The same setting is applied to baseline and improved retrieval.  ",
+        f"Source filter: **{filter_description}**. The same setting is applied to baseline and improved retrieval.  ",
         f"Baseline: Pinecone Top-{BASELINE_K} (reference: [run {BASELINE_RUN_ID}]({BASELINE_RUN_URL})).  ",
         f"Ground truth: expected chunk IDs from [HW2 Pages]({EXPECTED_RESULTS_URL}).  ",
         f"Improved: Pinecone Top-{CANDIDATE_K}, cross-encoder reranking, final Top-{FINAL_K}.", "",
@@ -226,13 +224,13 @@ def main() -> None:
 
     index_name = os.environ.get("PINECONE_INDEX", DEFAULT_INDEX)
     namespace = os.environ.get("PINECONE_NAMESPACE", DEFAULT_NAMESPACE)
-    filter_by_domain = boolean_env("PINECONE_FILTER_BY_DOMAIN", DEFAULT_FILTER_BY_DOMAIN)
+    source = source_env("PINECONE_SOURCE")
     json_path = Path(os.environ.get("PINECONE_EVALUATION_JSON_PATH", DEFAULT_JSON_PATH))
     summary_path = Path(os.environ.get("PINECONE_EVALUATION_SUMMARY_PATH", DEFAULT_SUMMARY_PATH))
     model = SentenceTransformer(EMBEDDING_MODEL)
     reranker = CrossEncoder(RERANKER_MODEL)
     index = Pinecone(api_key=required_env("PINECONE_API_KEY")).Index(index_name)
-    report = evaluate(model, reranker, index, namespace, filter_by_domain)
+    report = evaluate(model, reranker, index, namespace, source)
     write_outputs(report, json_path, summary_path)
     print(json.dumps(report["aggregate"], indent=2))
     print(report["verdict"])
