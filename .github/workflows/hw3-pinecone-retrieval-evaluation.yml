@@ -35,9 +35,9 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: make setup
-      - name: Compare baseline and improved retrieval
+      - name: Evaluate reranked retrieval
         run: make pinecone-retrieval-evaluation
-      - name: Add comparison to job summary
+      - name: Add evaluation to job summary
         if: always()
         run: cat data/hw3/output/pinecone_retrieval_evaluation.md >> "$GITHUB_STEP_SUMMARY"
       - name: Upload evaluation reports
