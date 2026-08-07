@@ -1,4 +1,4 @@
-"""Compare baseline Pinecone retrieval with filtering and cross-encoder reranking."""
+"""Evaluate Pinecone retrieval with cross-encoder reranking."""
 
 from __future__ import annotations
 
@@ -8,12 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from pages_evaluation_reference import (
-    BASELINE_RUN_ID,
-    BASELINE_RUN_URL,
-    CASES,
-    EXPECTED_RESULTS_URL,
-)
+from pages_evaluation_reference import CASES, EXPECTED_RESULTS_URL
 
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
@@ -21,7 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INDEX = "supp-bro"
 DEFAULT_NAMESPACE = "hw3-pinecone-vector"
 ALLOWED_SOURCES = frozenset({"pages", "issues"})
-BASELINE_K, CANDIDATE_K, FINAL_K = 5, 15, 5
+CANDIDATE_K, FINAL_K = 15, 5
 DEFAULT_JSON_PATH = PROJECT_ROOT / "data/hw3/output/pinecone_retrieval_evaluation.json"
 DEFAULT_SUMMARY_PATH = PROJECT_ROOT / "data/hw3/output/pinecone_retrieval_evaluation.md"
 
@@ -90,9 +85,9 @@ def first_relevant_rank(results: list[dict[str, Any]], relevant_ids: frozenset[s
     return next((rank for rank, result in enumerate(results, 1) if result["chunk_id"] in relevant_ids), None)
 
 
-def aggregate(rows: list[dict[str, Any]], pipeline: str) -> dict[str, float]:
+def aggregate(rows: list[dict[str, Any]]) -> dict[str, float]:
     names = ("top_1", "hit_at_5", "mrr", "precision_at_5")
-    return {name: sum(row[pipeline]["metrics"][name] for row in rows) / len(rows) for name in names}
+    return {name: sum(row["metrics"][name] for row in rows) / len(rows) for name in names}
 
 
 def compact(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -102,43 +97,23 @@ def compact(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def evaluate(model: Any, reranker: Any, index: Any, namespace: str, source: str | None) -> dict[str, Any]:
     rows = []
     for case in CASES:
-        metadata_filter = {"source": source} if source else None
-        baseline = search(case.query, model, index, namespace, BASELINE_K, metadata_filter)
+        metadata_filter = {"source": {"$eq": source}} if source else None
         candidates = search(case.query, model, index, namespace, CANDIDATE_K, metadata_filter)
-        improved = rerank(case.query, candidates, reranker)[:FINAL_K]
+        results = rerank(case.query, candidates, reranker)[:FINAL_K]
         rows.append(
             {
                 "query": case.query,
                 "metadata_filter": metadata_filter,
                 "relevant_chunk_ids": sorted(case.relevant_ids),
-                "baseline": {
-                    "metrics": calculate_metrics(baseline, case.relevant_ids),
-                    "first_relevant_rank": first_relevant_rank(baseline, case.relevant_ids),
-                    "results": compact(baseline),
-                },
-                "improved": {
-                    "metrics": calculate_metrics(improved, case.relevant_ids),
-                    "first_relevant_rank": first_relevant_rank(improved, case.relevant_ids),
-                    "results": compact(improved),
-                },
+                "metrics": calculate_metrics(results, case.relevant_ids),
+                "first_relevant_rank": first_relevant_rank(results, case.relevant_ids),
+                "results": compact(results),
             }
         )
-    baseline_metrics = aggregate(rows, "baseline")
-    improved_metrics = aggregate(rows, "improved")
-    delta = {name: improved_metrics[name] - baseline_metrics[name] for name in baseline_metrics}
-    improved_count = sum(value > 1e-12 for value in delta.values())
-    regressed_count = sum(value < -1e-12 for value in delta.values())
-    if improved_count and not regressed_count:
-        verdict = "Improved retrieval is better on at least one aggregate metric with no measured regression."
-    elif improved_count:
-        verdict = "Mixed result: some aggregate metrics improved and others regressed."
-    else:
-        verdict = "No aggregate retrieval improvement was demonstrated."
     return {
-        "configuration": {"embedding_model": EMBEDDING_MODEL, "reranker_model": RERANKER_MODEL, "baseline_k": BASELINE_K, "candidate_k": CANDIDATE_K, "final_k": FINAL_K, "source": source, "baseline_run_id": BASELINE_RUN_ID},
-        "references": {"baseline_run": BASELINE_RUN_URL, "expected_results": EXPECTED_RESULTS_URL},
-        "aggregate": {"baseline": baseline_metrics, "improved": improved_metrics, "delta": delta},
-        "verdict": verdict,
+        "configuration": {"embedding_model": EMBEDDING_MODEL, "reranker_model": RERANKER_MODEL, "candidate_k": CANDIDATE_K, "final_k": FINAL_K, "source": source},
+        "references": {"expected_results": EXPECTED_RESULTS_URL},
+        "aggregate": aggregate(rows),
         "queries": rows,
     }
 
@@ -164,49 +139,40 @@ def write_outputs(report: dict[str, Any], json_path: Path, summary_path: Path) -
     json_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    baseline, improved = report["aggregate"]["baseline"], report["aggregate"]["improved"]
+    metrics = report["aggregate"]
     source = report["configuration"]["source"]
     filter_description = f"`source={source}`" if source else "disabled (all sources)"
     lines = [
-        "# Pinecone retrieval: baseline vs improved", "",
-        f"Source filter: **{filter_description}**. The same setting is applied to baseline and improved retrieval.  ",
-        f"Baseline: Pinecone Top-{BASELINE_K} (reference: [run {BASELINE_RUN_ID}]({BASELINE_RUN_URL})).  ",
+        "# Pinecone retrieval with cross-encoder reranking", "",
+        f"Source filter: **{filter_description}**.  ",
         f"Ground truth: expected chunk IDs from [HW2 Pages]({EXPECTED_RESULTS_URL}).  ",
-        f"Improved: Pinecone Top-{CANDIDATE_K}, cross-encoder reranking, final Top-{FINAL_K}.", "",
-        "| Pipeline | Top-1 | Hit@5 | MRR | Precision@5 |", "| --- | ---: | ---: | ---: | ---: |",
-        f"| Baseline | {baseline['top_1']:.1%} | {baseline['hit_at_5']:.1%} | {baseline['mrr']:.3f} | {baseline['precision_at_5']:.1%} |",
-        f"| Improved | {improved['top_1']:.1%} | {improved['hit_at_5']:.1%} | {improved['mrr']:.3f} | {improved['precision_at_5']:.1%} |", "",
-        f"**Verdict:** {report['verdict']}", "",
+        f"Pipeline: Pinecone Top-{CANDIDATE_K}, cross-encoder reranking, final Top-{FINAL_K}.", "",
+        "| Top-1 | Hit@5 | MRR | Precision@5 |", "| ---: | ---: | ---: | ---: |",
+        f"| {metrics['top_1']:.1%} | {metrics['hit_at_5']:.1%} | {metrics['mrr']:.3f} | {metrics['precision_at_5']:.1%} |", "",
     ]
     lines.extend([
         "## Per-query metrics", "",
-        "| Query | Baseline Top-1 | Baseline Hit@5 | Baseline RR | Baseline Precision@5 | Improved Top-1 | Improved Hit@5 | Improved RR | Improved Precision@5 |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Query | Top-1 | Hit@5 | RR | Precision@5 |",
+        "| --- | ---: | ---: | ---: | ---: |",
     ])
     for row in report["queries"]:
-        baseline_metrics = row["baseline"]["metrics"]
-        improved_metrics = row["improved"]["metrics"]
+        row_metrics = row["metrics"]
         lines.append(
-            f"| {escape_markdown(row['query'])} | {format_metric(baseline_metrics['top_1'])} | "
-            f"{format_metric(baseline_metrics['hit_at_5'])} | {format_metric(baseline_metrics['mrr'], percentage=False)} | "
-            f"{format_metric(baseline_metrics['precision_at_5'])} | {format_metric(improved_metrics['top_1'])} | "
-            f"{format_metric(improved_metrics['hit_at_5'])} | {format_metric(improved_metrics['mrr'], percentage=False)} | "
-            f"{format_metric(improved_metrics['precision_at_5'])} |"
+            f"| {escape_markdown(row['query'])} | {format_metric(row_metrics['top_1'])} | "
+            f"{format_metric(row_metrics['hit_at_5'])} | {format_metric(row_metrics['mrr'], percentage=False)} | "
+            f"{format_metric(row_metrics['precision_at_5'])} |"
         )
     lines.extend([
         "", "## Retrieved chunks", "",
-        "| Query | Expected chunks | Baseline retrieved chunks | Improved retrieved chunks | Baseline first relevant rank | Improved first relevant rank |",
-        "| --- | --- | --- | --- | ---: | ---: |",
+        "| Query | Expected chunks | Retrieved chunks | First relevant rank |",
+        "| --- | --- | --- | ---: |",
     ])
     for row in report["queries"]:
-        baseline_rank = row["baseline"]["first_relevant_rank"] or "—"
-        improved_rank = row["improved"]["first_relevant_rank"] or "—"
+        first_rank = row["first_relevant_rank"] or "—"
         expected = "<br>".join(f"`{chunk_id}`" for chunk_id in row["relevant_chunk_ids"])
-        baseline_results = format_chunk_ids(row["baseline"]["results"])
-        improved_results = format_chunk_ids(row["improved"]["results"])
+        results = format_chunk_ids(row["results"])
         lines.append(
-            f"| {escape_markdown(row['query'])} | {expected} | {baseline_results} | "
-            f"{improved_results} | {baseline_rank} | {improved_rank} |"
+            f"| {escape_markdown(row['query'])} | {expected} | {results} | {first_rank} |"
         )
     summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -233,7 +199,6 @@ def main() -> None:
     report = evaluate(model, reranker, index, namespace, source)
     write_outputs(report, json_path, summary_path)
     print(json.dumps(report["aggregate"], indent=2))
-    print(report["verdict"])
     print(f"JSON report: {json_path}")
     print(f"Markdown summary: {summary_path}")
 
