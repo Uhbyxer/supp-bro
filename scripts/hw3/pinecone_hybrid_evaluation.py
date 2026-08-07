@@ -1,4 +1,4 @@
-"""Compare Pinecone vector retrieval with metadata-filtered BM25/RRF hybrid search."""
+"""Evaluate Pinecone and BM25 retrieval fused with reciprocal rank fusion."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any
 
 from pinecone_retrieval_evaluation import (
-    BASELINE_K,
     EMBEDDING_MODEL,
     FINAL_K,
     PROJECT_ROOT,
@@ -22,10 +21,9 @@ from pinecone_retrieval_evaluation import (
     format_chunk_ids,
     required_env,
     search,
+    source_env,
 )
 from pages_evaluation_reference import (
-    BASELINE_RUN_ID,
-    BASELINE_RUN_URL,
     CASES,
     EXPECTED_RESULTS_URL,
 )
@@ -58,10 +56,9 @@ def load_chunks(paths: list[Path] = CHUNK_PATHS) -> list[dict[str, Any]]:
     return chunks
 
 
-def filter_chunks(chunks: list[dict[str, Any]], metadata_filter: dict[str, Any]) -> list[dict[str, Any]]:
-    source = metadata_filter.get("source", {}).get("$eq")
-    if not source:
-        raise ValueError(f"Unsupported metadata filter: {metadata_filter}")
+def select_chunks(chunks: list[dict[str, Any]], source: str | None) -> list[dict[str, Any]]:
+    if source is None:
+        return chunks
     return [chunk for chunk in chunks if chunk.get("metadata", {}).get("source") == source]
 
 
@@ -103,56 +100,42 @@ def reciprocal_rank_fusion(*rankings: list[dict[str, Any]], rrf_k: int = RRF_K) 
     return sorted(fused.values(), key=lambda item: (-item["rrf_score"], item["chunk_id"]))
 
 
-def evaluate(model: Any, index: Any, namespace: str, chunks: list[dict[str, Any]]) -> dict[str, Any]:
+def evaluate(
+    model: Any,
+    index: Any,
+    namespace: str,
+    chunks: list[dict[str, Any]],
+    source: str | None,
+) -> dict[str, Any]:
     rows = []
+    metadata_filter = {"source": {"$eq": source}} if source else None
+    bm25_chunks = select_chunks(chunks, source)
     for case in CASES:
-        baseline = search(case.query, model, index, namespace, BASELINE_K)
-        dense = search(case.query, model, index, namespace, CANDIDATE_K, case.metadata_filter)
-        filtered_chunks = filter_chunks(chunks, case.metadata_filter)
-        sparse = bm25_search(case.query, filtered_chunks, CANDIDATE_K)
+        dense = search(case.query, model, index, namespace, CANDIDATE_K, metadata_filter)
+        sparse = bm25_search(case.query, bm25_chunks, CANDIDATE_K)
         hybrid = reciprocal_rank_fusion(dense, sparse)[:FINAL_K]
         rows.append(
             {
                 "query": case.query,
-                "metadata_filter": case.metadata_filter,
+                "metadata_filter": metadata_filter,
                 "relevant_chunk_ids": sorted(case.relevant_ids),
-                "baseline": {
-                    "metrics": calculate_metrics(baseline, case.relevant_ids),
-                    "first_relevant_rank": first_relevant_rank(baseline, case.relevant_ids),
-                    "results": compact(baseline),
-                },
-                "hybrid": {
-                    "metrics": calculate_metrics(hybrid, case.relevant_ids),
-                    "first_relevant_rank": first_relevant_rank(hybrid, case.relevant_ids),
-                    "results": hybrid,
-                },
+                "metrics": calculate_metrics(hybrid, case.relevant_ids),
+                "first_relevant_rank": first_relevant_rank(hybrid, case.relevant_ids),
+                "results": compact(hybrid),
             }
         )
-    baseline_metrics = aggregate(rows, "baseline")
-    hybrid_metrics = aggregate(rows, "hybrid")
-    delta = {name: hybrid_metrics[name] - baseline_metrics[name] for name in baseline_metrics}
-    improved_count = sum(value > 1e-12 for value in delta.values())
-    regressed_count = sum(value < -1e-12 for value in delta.values())
-    if improved_count and not regressed_count:
-        verdict = "Hybrid retrieval is better on at least one aggregate metric with no measured regression."
-    elif improved_count:
-        verdict = "Mixed result: some aggregate metrics improved and others regressed."
-    else:
-        verdict = "No aggregate hybrid retrieval improvement was demonstrated."
     return {
         "configuration": {
             "embedding_model": EMBEDDING_MODEL,
-            "baseline_k": BASELINE_K,
             "dense_candidate_k": CANDIDATE_K,
             "bm25_candidate_k": CANDIDATE_K,
             "rrf_k": RRF_K,
             "final_k": FINAL_K,
             "fuzzy_search": False,
-            "baseline_run_id": BASELINE_RUN_ID,
+            "source": source,
         },
-        "references": {"baseline_run": BASELINE_RUN_URL, "expected_results": EXPECTED_RESULTS_URL},
-        "aggregate": {"baseline": baseline_metrics, "hybrid": hybrid_metrics, "delta": delta},
-        "verdict": verdict,
+        "references": {"expected_results": EXPECTED_RESULTS_URL},
+        "aggregate": aggregate(rows),
         "queries": rows,
     }
 
@@ -161,30 +144,40 @@ def write_outputs(report: dict[str, Any], json_path: Path, summary_path: Path) -
     json_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    baseline, hybrid = report["aggregate"]["baseline"], report["aggregate"]["hybrid"]
+    metrics = report["aggregate"]
+    source = report["configuration"]["source"]
+    filter_description = f"`source={source}`" if source else "disabled (all sources)"
     lines = [
-        "# Pinecone retrieval: baseline vs BM25/RRF hybrid", "",
-        f"Baseline: old unfiltered Pinecone Top-{BASELINE_K} pipeline used in [run {BASELINE_RUN_ID}]({BASELINE_RUN_URL}).  ",
+        "# Pinecone retrieval with BM25/RRF hybrid search", "",
+        f"Source filter: **{filter_description}**.  ",
         f"Ground truth: expected chunk IDs from [HW2 Pages]({EXPECTED_RESULTS_URL}).  ",
-        f"Hybrid: metadata filter, Pinecone Top-{CANDIDATE_K} + BM25 Top-{CANDIDATE_K}, RRF (k={RRF_K}), final Top-{FINAL_K}.", "",
-        "| Pipeline | Top-1 | Hit@5 | MRR | Precision@5 |", "| --- | ---: | ---: | ---: | ---: |",
-        f"| Baseline | {baseline['top_1']:.1%} | {baseline['hit_at_5']:.1%} | {baseline['mrr']:.3f} | {baseline['precision_at_5']:.1%} |",
-        f"| Hybrid | {hybrid['top_1']:.1%} | {hybrid['hit_at_5']:.1%} | {hybrid['mrr']:.3f} | {hybrid['precision_at_5']:.1%} |", "",
-        f"**Verdict:** {report['verdict']}", "",
+        f"Pipeline: Pinecone Top-{CANDIDATE_K} + BM25 Top-{CANDIDATE_K}, RRF (k={RRF_K}), final Top-{FINAL_K}.", "",
+        "| Top-1 | Hit@5 | MRR | Precision@5 |", "| ---: | ---: | ---: | ---: |",
+        f"| {metrics['top_1']:.1%} | {metrics['hit_at_5']:.1%} | {metrics['mrr']:.3f} | {metrics['precision_at_5']:.1%} |", "",
     ]
     lines.extend([
-        "| Query | Expected chunks | Baseline retrieved chunks | Hybrid retrieved chunks | Baseline first relevant rank | Hybrid first relevant rank |",
-        "| --- | --- | --- | --- | ---: | ---: |",
+        "## Per-query metrics", "",
+        "| Query | Top-1 | Hit@5 | RR | Precision@5 |",
+        "| --- | ---: | ---: | ---: | ---: |",
     ])
     for row in report["queries"]:
-        baseline_rank = row["baseline"]["first_relevant_rank"] or "—"
-        hybrid_rank = row["hybrid"]["first_relevant_rank"] or "—"
-        expected = "<br>".join(f"`{chunk_id}`" for chunk_id in row["relevant_chunk_ids"])
-        baseline_results = format_chunk_ids(row["baseline"]["results"])
-        hybrid_results = format_chunk_ids(row["hybrid"]["results"])
+        row_metrics = row["metrics"]
         lines.append(
-            f"| {escape_markdown(row['query'])} | {expected} | {baseline_results} | "
-            f"{hybrid_results} | {baseline_rank} | {hybrid_rank} |"
+            f"| {escape_markdown(row['query'])} | {row_metrics['top_1']:.1%} | "
+            f"{row_metrics['hit_at_5']:.1%} | {row_metrics['mrr']:.3f} | "
+            f"{row_metrics['precision_at_5']:.1%} |"
+        )
+    lines.extend([
+        "", "## Retrieved chunks", "",
+        "| Query | Expected chunks | Retrieved chunks | First relevant rank |",
+        "| --- | --- | --- | ---: |",
+    ])
+    for row in report["queries"]:
+        first_rank = row["first_relevant_rank"] or "—"
+        expected = "<br>".join(f"`{chunk_id}`" for chunk_id in row["relevant_chunk_ids"])
+        results = format_chunk_ids(row["results"])
+        lines.append(
+            f"| {escape_markdown(row['query'])} | {expected} | {results} | {first_rank} |"
         )
     summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -202,14 +195,14 @@ def main() -> None:
 
     index_name = os.environ.get("PINECONE_INDEX", DEFAULT_INDEX)
     namespace = os.environ.get("PINECONE_NAMESPACE", DEFAULT_NAMESPACE)
+    source = source_env("PINECONE_SOURCE")
     json_path = Path(os.environ.get("PINECONE_HYBRID_JSON_PATH", DEFAULT_JSON_PATH))
     summary_path = Path(os.environ.get("PINECONE_HYBRID_SUMMARY_PATH", DEFAULT_SUMMARY_PATH))
     model = SentenceTransformer(EMBEDDING_MODEL)
     index = Pinecone(api_key=required_env("PINECONE_API_KEY")).Index(index_name)
-    report = evaluate(model, index, namespace, load_chunks())
+    report = evaluate(model, index, namespace, load_chunks(), source)
     write_outputs(report, json_path, summary_path)
     print(json.dumps(report["aggregate"], indent=2))
-    print(report["verdict"])
     print(f"JSON report: {json_path}")
     print(f"Markdown summary: {summary_path}")
 
