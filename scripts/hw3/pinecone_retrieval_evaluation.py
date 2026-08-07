@@ -139,7 +139,6 @@ def write_outputs(report: dict[str, Any], json_path: Path, summary_path: Path) -
     json_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    metrics = report["aggregate"]
     source = report["configuration"]["source"]
     filter_description = f"`source={source}`" if source else "disabled (all sources)"
     lines = [
@@ -147,34 +146,20 @@ def write_outputs(report: dict[str, Any], json_path: Path, summary_path: Path) -
         f"Source filter: **{filter_description}**.  ",
         f"Ground truth: expected chunk IDs from [HW2 Pages]({EXPECTED_RESULTS_URL}).  ",
         f"Pipeline: Pinecone Top-{CANDIDATE_K}, cross-encoder reranking, final Top-{FINAL_K}.", "",
-        "| Top-1 | Hit@5 | MRR | Precision@5 |", "| ---: | ---: | ---: | ---: |",
-        f"| {metrics['top_1']:.1%} | {metrics['hit_at_5']:.1%} | {metrics['mrr']:.3f} | {metrics['precision_at_5']:.1%} |", "",
+        "| Query | Expected chunks | Retrieved chunks | Top-1 | Hit@5 | RR | Precision@5 |",
+        "| --- | --- | --- | ---: | ---: | ---: | ---: |",
     ]
-    lines.extend([
-        "## Per-query metrics", "",
-        "| Query | Top-1 | Hit@5 | RR | Precision@5 |",
-        "| --- | ---: | ---: | ---: | ---: |",
-    ])
     for row in report["queries"]:
-        row_metrics = row["metrics"]
-        lines.append(
-            f"| {escape_markdown(row['query'])} | {format_metric(row_metrics['top_1'])} | "
-            f"{format_metric(row_metrics['hit_at_5'])} | {format_metric(row_metrics['mrr'], percentage=False)} | "
-            f"{format_metric(row_metrics['precision_at_5'])} |"
-        )
-    lines.extend([
-        "", "## Retrieved chunks", "",
-        "| Query | Expected chunks | Retrieved chunks | First relevant rank |",
-        "| --- | --- | --- | ---: |",
-    ])
-    for row in report["queries"]:
-        first_rank = row["first_relevant_rank"] or "—"
+        metrics = row["metrics"]
         expected = "<br>".join(f"`{chunk_id}`" for chunk_id in row["relevant_chunk_ids"])
         results = format_chunk_ids(row["results"])
         lines.append(
-            f"| {escape_markdown(row['query'])} | {expected} | {results} | {first_rank} |"
+            f"| {escape_markdown(row['query'])} | {expected} | {results} | "
+            f"{metrics['top_1']:.1%} | {metrics['hit_at_5']:.1%} | "
+            f"{metrics['mrr']:.3f} | {metrics['precision_at_5']:.1%} |"
         )
-    summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    lines.append("")
+    summary_path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def main() -> None:
