@@ -24,8 +24,8 @@ from pinecone_retrieval_evaluation import (
     source_env,
 )
 from pages_evaluation_reference import (
-    CASES,
     EXPECTED_RESULTS_URL,
+    cases_for_source,
 )
 
 DEFAULT_INDEX = "supp-bro"
@@ -110,7 +110,7 @@ def evaluate(
     rows = []
     metadata_filter = {"source": {"$eq": source}} if source else None
     bm25_chunks = select_chunks(chunks, source)
-    for case in CASES:
+    for case in cases_for_source(source):
         dense = search(case.query, model, index, namespace, CANDIDATE_K, metadata_filter)
         sparse = bm25_search(case.query, bm25_chunks, CANDIDATE_K)
         hybrid = reciprocal_rank_fusion(dense, sparse)[:FINAL_K]
@@ -118,9 +118,10 @@ def evaluate(
             {
                 "query": case.query,
                 "metadata_filter": metadata_filter,
-                "relevant_chunk_ids": sorted(case.relevant_ids),
-                "metrics": calculate_metrics(hybrid, case.relevant_ids),
-                "first_relevant_rank": first_relevant_rank(hybrid, case.relevant_ids),
+                "source": case.source,
+                "relevant_chunk_ids": list(case.relevant_patterns),
+                "metrics": calculate_metrics(hybrid, case),
+                "first_relevant_rank": first_relevant_rank(hybrid, case),
                 "results": compact(hybrid),
             }
         )
@@ -149,7 +150,7 @@ def write_outputs(report: dict[str, Any], json_path: Path, summary_path: Path) -
     lines = [
         "# Pinecone retrieval with BM25/RRF hybrid search", "",
         f"Source filter: **{filter_description}**.  ",
-        f"Ground truth: expected chunk IDs from [HW2 Pages]({EXPECTED_RESULTS_URL}).  ",
+        f"Ground truth: expected chunk IDs/patterns from [HW2]({EXPECTED_RESULTS_URL}).  ",
         f"Pipeline: Pinecone Top-{CANDIDATE_K} + BM25 Top-{CANDIDATE_K}, RRF (k={RRF_K}), final Top-{FINAL_K}.", "",
         "| Query | Expected chunks | Retrieved chunks | Top-1 | Hit@5 | RR | Precision@5 |",
         "| --- | --- | --- | ---: | ---: | ---: | ---: |",
