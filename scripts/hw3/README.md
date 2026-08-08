@@ -57,190 +57,138 @@ Evaluation використовує однаковий набір із 10 зап
 | 10 | Issue про міграцію тестів із JUnit4 | `issues:dbz:11:chunk_001` | ✓ `11:001`<br>× `73:007`<br>× `73:005`<br>× `4:005`<br>× `1407:002` | ✓ `11:001`<br>× `1407:001`<br>× `73:001`<br>× `73:008`<br>× `1407:009` | ✓ `11:001`<br>× `73:005`<br>× `73:008`<br>× `73:001`<br>× `1407:005` | ✓ `11:001`<br>× `73:007`<br>× `73:005`<br>× `4:005`<br>× `1407:002` | ✓ `11:001`<br>× `1407:001`<br>× `73:001`<br>× `73:008`<br>× `1407:009` | ✓ `11:001`<br>× `73:005`<br>× `73:008`<br>× `73:001`<br>× `1407:002` | Усі відразу знайшли точний chunk; інші результати Top-5 нерелевантні. Після фільтрації: Без змін у метриках: точний chunk і далі Top-1, Precision@5 залишається 20%. |
 
 
-#### Етап фільтрації
+### Короткий висновок
 
-Фільтр було додано після порівняння baseline, reranking і hybrid. Він не змінює алгоритм сортування, а обмежує candidates за metadata `source`:
+Найкращий результат показав **hybrid BM25 + Pinecone через RRF із правильним фільтром `source`**: Top-1 — **90%**, Hit@5 — **100%**, MRR — **0.95**, Precision@5 — **64%**.
 
-- `source=pages` — для запитів 1–5 Pinecone і BM25 шукають лише серед документації;
-- `source=issues` — для запитів 6–10 пошук виконується лише серед GitHub issues;
-- порожнє значення — використовуються обидва джерела, саме так були отримані результати в таблиці.
+Порівняно з baseline без фільтра hybrid із фільтром:
 
-Фактичні filtered runs підтвердили, що основний ефект припав на Pages. Найсильніше покращився запит 5, де без фільтрації результати забруднювали chunks із `issues`. Для Issues метрики не змінилися, оскільки правильні issue chunks і до фільтрації вже домінували у Top-5.
+- підняв Top-1 з 80% до 90% (**+10 процентних пунктів**);
+- зберіг Hit@5 на 100% — усі запити й далі мають релевантний chunk у Top-5;
+- підняв MRR з 0.85 до 0.95 (**+0.10**), тобто правильний результат у середньому став ближчим до першої позиції;
+- підняв Precision@5 з 56% до 64% (**+8 процентних пунктів**).
 
-| Pipeline | Top-1 без фільтра | Top-1 з фільтром | MRR без фільтра | MRR з фільтром | Precision@5 без фільтра | Precision@5 з фільтром |
-|---|---:|---:|---:|---:|---:|---:|
-| Baseline Pinecone | 80% | 80% | 0.85 | 0.90 | 56% | 60% |
-| Cross-encoder reranking | 80% | 80% | 0.90 | 0.90 | 58% | 62% |
-| Hybrid BM25 + RRF | 80% | **90%** | 0.90 | **0.95** | 62% | **64%** |
+Сам фільтр дав різний ефект. Для baseline Top-1 не змінився, але MRR зріс на 0.05, а Precision@5 — на 4 п.п. Для reranking Top-1 і MRR не змінилися, а Precision@5 зріс на 4 п.п. Найбільше фільтр допоміг hybrid: Top-1 зріс на 10 п.п., MRR — на 0.05, Precision@5 — на 2 п.п. Регресії в загальних метриках не було. Найпомітніше покращився запит №5: фільтр прибрав chunks із `issues`, які витісняли потрібну документацію.
 
-Зараз hybrid retrieval показує найкращий загальний результат, хоча перевага невелика й проявляється лише в Precision@5. Для Issues значення Precision@5 треба трактувати обережно: для частини тестів релевантним вважається будь-який chunk правильного issue, тоді як для Pages expected chunks задані точніше.
+Reranking краще спрацював для окремих складних semantic-запитів, але іноді погіршував першу позицію. Hybrid виявився стабільнішим загалом і частіше повертав більше релевантних chunks у Top-5, тому це рекомендований варіант для основного retrieval pipeline.
 
-HW3 фокусується на покращенні retrieval pipeline після локального FAISS baseline з HW2.
-Перше покращення - перенести semantic retrieval storage у MongoDB Atlas Vector Search, щоб chunk text, metadata та embeddings зберігалися в одній searchable collection.
 
-Також HW3 містить альтернативний Pinecone backend: окремі скрипти створюють і наповнюють index та запускають semantic search для тих самих queries, що й HW2 і MongoDB.
+## Як запускати retrieval pipelines
 
-## MongoDB Atlas Vector Search
-
-Скрипт `scripts/hw3/build_mongo_vector_index.py` готує MongoDB Atlas retrieval backend.
-Він читає ті самі HW1 chunk files, які використовувалися в HW2:
-
-- `data/hw1/processed/chunks_large.jsonl`;
-- `data/hw1/processed/chunks_medium.json`.
-
-Скрипт створює embeddings через `sentence-transformers/all-MiniLM-L6-v2`, завантажує один MongoDB document на кожен chunk і створює Atlas Vector Search index для поля `embedding`.
-Після цього `scripts/hw3/mongo_semantic_search.py` запускає ті самі тестові queries, що й HW2 FAISS baseline, щоб результати можна було порівнювати напряму.
-
-## Environment variables для MongoDB
-
-Обов'язково:
-
-- `MONGODB_URI`: MongoDB Atlas connection string.
-
-Опціонально:
-
-- `MONGODB_DATABASE`: database name, default `supp-bro`;
-- `MONGODB_COLLECTION`: collection name, default `chunks`;
-- `MONGODB_VECTOR_INDEX`: vector index name, default `vector_index`.
-
-Для локального запуску можна змінити `.env` у root папці repo:
-
-```env
-MONGODB_URI=mongodb+srv://user:password@cluster.mongodb.net/
-MONGODB_DATABASE=supp-bro
-MONGODB_COLLECTION=chunks
-MONGODB_VECTOR_INDEX=vector_index
-```
-
-Файл `.env` містить placeholder values. Для локального запуску заміни `MONGODB_URI` на свій MongoDB Atlas connection string.
-
-## Запуск
+Перед першим запуском потрібно один раз встановити залежності:
 
 ```bash
-MONGODB_URI="mongodb+srv://..." make build-mongo-index
+make setup
 ```
 
-Перевірити semantic search через MongoDB Atlas Vector Search:
-
-```bash
-MONGODB_URI="mongodb+srv://..." make mongo-semantic-search
-```
-
-Зберегти результат MongoDB semantic search у текстовий файл для порівняння з HW2:
-
-```bash
-MONGODB_URI="mongodb+srv://..." make mongo-semantic-search > data/hw2/output/mongo_semantic_search_output.txt
-```
-
-Vector index використовує:
-
-- vector path: `embedding`;
-- filter path: `pipeline`;
-- dimensions: `384`;
-- similarity: `dotProduct`.
-
-## Cleanup behavior для stale records
-
-Скрипт завжди робить stale cleanup, але не очищає collection повністю.
-Він робить idempotent upsert по `chunk_id`, тому повторний запуск оновлює існуючі chunk documents або додає нові.
-
-Після upsert скрипт видаляє тільки stale documents цього pipeline:
-
-- document має `pipeline: "hw3_mongo_vector"`;
-- `chunk_id` більше не існує в поточних HW1 input chunks.
-
-Скрипт не використовує `delete_many({})`, бо такий cleanup може випадково видалити інші retrieval experiments у тій самій collection.
-
-## GitHub Actions
-
-Для GitHub Actions credentials не беруться з `.env`.
-`MONGODB_URI` потрібно додати як GitHub repository Secret.
-Не секретні значення можна задати як workflow env або GitHub Variables:
-
-```yaml
-env:
-  MONGODB_URI: ${{ secrets.MONGODB_URI }}
-  MONGODB_DATABASE: supp-bro
-  MONGODB_COLLECTION: chunks
-  MONGODB_VECTOR_INDEX: vector_index
-```
-
-У цьому repo GitHub Actions workflows для MongoDB запускаються тільки вручну через `workflow_dispatch`.
-Є два окремі workflows:
-
-- `Build HW3 Mongo Vector Index`: будує embeddings, upsert documents у MongoDB і створює Atlas Vector Search index;
-- `Check HW3 Mongo Semantic Search`: запускає MongoDB semantic search з тими самими queries, що й HW2, показує Markdown table у GitHub Actions summary і завантажує `mongo_semantic_search_output.txt` / `mongo_semantic_search_summary.md` як artifact.
-
-Для GitHub-hosted runners треба врахувати Atlas IP allow-list: runner IP може змінюватися між запусками.
-Для стабільнішого доступу можна використати self-hosted runner зі static IP або окремо налаштувати Atlas network access для CI.
-
-## Pinecone Vector Index
-
-`scripts/hw3/build_pinecone_vector_index.py` читає ті самі HW1 chunks, генерує нормалізовані 384-dimensional embeddings і idempotently завантажує їх у Pinecone serverless index.
-
-Обов'язковий GitHub repository Secret:
-
-- `PINECONE_API_KEY`: API key із Pinecone console.
-
-Опціональні environment variables:
-
-- `PINECONE_INDEX`: index name, default `supp-bro`;
-- `PINECONE_NAMESPACE`: namespace, default `hw3-pinecone-vector`;
-- `PINECONE_CLOUD`: serverless cloud, default `aws`;
-- `PINECONE_REGION`: serverless region, default `us-east-1`.
-
-Локальний запуск:
+Для Pinecone потрібен `PINECONE_API_KEY`. За замовчуванням використовується index `supp-bro` і namespace `hw3-pinecone-vector`. Якщо index ще не створено або вхідні chunks змінилися, спочатку потрібно перебудувати його:
 
 ```bash
 PINECONE_API_KEY="..." make build-pinecone-index
 ```
 
-Перевірити semantic search у Pinecone:
+Повторно будувати index перед кожною evaluation не потрібно: build виконує idempotent upsert і видаляє stale vectors лише в namespace HW3.
+
+### Який варіант запускати
+
+| Варіант | Коли використовувати | GitHub Actions workflow | Локальна команда |
+|---|---|---|---|
+| Baseline Pinecone | Контрольний результат без додаткового сортування | `Check HW3 Pinecone Semantic Search` | `PINECONE_API_KEY="..." make pinecone-semantic-search` |
+| Cross-encoder reranking | Коли важливіший semantic зміст і потрібно повторно оцінити Pinecone candidates | `Evaluate HW3 Pinecone Retrieval` | `PINECONE_API_KEY="..." make pinecone-retrieval-evaluation` |
+| Hybrid BM25 + RRF | Рекомендований основний варіант: поєднує semantic і keyword matching | `Evaluate HW3 Pinecone Hybrid Retrieval` | `PINECONE_API_KEY="..." make pinecone-hybrid-evaluation` |
+
+Якщо тип джерела відомий, варто додати фільтр:
+
+- `PINECONE_SOURCE=pages` — шукати лише в документації та оцінити 5 Pages-запитів;
+- `PINECONE_SOURCE=issues` — шукати лише в GitHub issues та оцінити 5 Issues-запитів;
+- порожній `PINECONE_SOURCE` — шукати в обох джерелах та оцінити всі 10 запитів.
+
+Наприклад, рекомендований hybrid pipeline лише для документації:
 
 ```bash
-PINECONE_API_KEY="..." make pinecone-semantic-search
+PINECONE_API_KEY="..." PINECONE_SOURCE=pages make pinecone-hybrid-evaluation
 ```
 
-Workflow `Build HW3 Pinecone Vector Index` запускається вручну через `workflow_dispatch`. Він створює index, якщо його ще немає, перевіряє dimension/metric існуючого index, upsert-ить поточні chunks у виділений namespace і видаляє з цього namespace stale vectors.
-
-Workflow `Check HW3 Pinecone Semantic Search` також запускається вручну. Він виконує ті самі 10 test queries з `top_k=5`, додає Markdown table до GitHub Actions summary і завантажує текстовий output та Markdown summary як artifact.
-
-## Pinecone retrieval evaluation
-
-`scripts/hw3/pinecone_retrieval_evaluation.py` порівнює два pipelines на 5 queries із секції `Pages` у HW2:
-
-- baseline: старий unfiltered Pinecone Top-5 pipeline, який використовувався в GitHub Actions run `30763956563`;
-- improved: metadata filter `source=pages`, Pinecone `top_k=15`, reranking моделлю `cross-encoder/ms-marco-MiniLM-L-6-v2` і фінальний `top_k=5`.
-
-Ground truth повністю повторює очікувані `chunk_id` з таблиці `scripts/hw2#pages`. Для обох варіантів скрипт рахує Top-1 accuracy, Hit@5, MRR та Precision@5 відносно цих IDs. Локальний запуск:
+Hybrid pipeline лише для issues:
 
 ```bash
-PINECONE_API_KEY="..." make pinecone-retrieval-evaluation
+PINECONE_API_KEY="..." PINECONE_SOURCE=issues make pinecone-hybrid-evaluation
 ```
 
-Workflow `Evaluate HW3 Pinecone Retrieval` додає порівняльну таблицю до GitHub Actions summary та завантажує повний JSON і Markdown reports як artifact.
-
-## Pinecone hybrid retrieval evaluation
-
-`scripts/hw3/pinecone_hybrid_evaluation.py` порівнює той самий старий baseline pipeline з run `30763956563` з hybrid pipeline на тих самих 5 `Pages` queries:
-
-- metadata-filtered Pinecone Top-15;
-- локальний BM25 Top-15 по всіх чанках, що пройшли той самий metadata filter;
-- Reciprocal Rank Fusion (`k=60`);
-- фінальний Top-5.
-
-Локальний запуск:
+Повне порівняння без фільтра:
 
 ```bash
-PINECONE_API_KEY="..." make pinecone-hybrid-evaluation
+PINECONE_API_KEY="..." PINECONE_SOURCE="" make pinecone-hybrid-evaluation
 ```
 
-Обидва evaluation workflows показують у GitHub Actions summary:
+Для reranking значення `PINECONE_SOURCE` задається так само, але запускається target `pinecone-retrieval-evaluation`.
 
-- aggregate metrics старого pipeline з run `30763956563` і нового pipeline;
-- delta та висновок про покращення або regression;
-- для кожного query — expected chunks із HW2 Pages та позицію першого релевантного baseline/new результату.
-## Зміна pipeline після HW2
+### Запуск у GitHub Actions
 
-HW2 зберігає vectors локально у FAISS, а chunk text/metadata окремо в JSONL.
-HW3 починає переносити retrieval у backend, який може зберігати vectors разом з chunk documents і підтримувати server-side vector search. Це спрощує наступні покращення, наприклад metadata filtering, порівняння MongoDB Atlas з Pinecone і побудову повнішого retrieval evaluation pipeline.
+1. Відкрити **Actions** у репозиторії.
+2. Вибрати потрібний workflow із таблиці вище.
+3. Натиснути **Run workflow**.
+4. У полі `source` вибрати порожнє значення, `pages` або `issues`.
+5. Після завершення відкрити job summary: там буде таблиця з expected і retrieved chunks та метриками для кожного запиту.
+6. Повні JSON і Markdown reports доступні в artifacts запуску.
+
+Для GitHub Actions `PINECONE_API_KEY` має бути доданий як repository secret. Workflow сам передає вибране поле `source` у `PINECONE_SOURCE`.
+
+## Важливі деталі імплементації
+
+### Baseline Pinecone
+
+Baseline кодує запит моделлю `sentence-transformers/all-MiniLM-L6-v2`, нормалізує 384-вимірний embedding і робить vector search у Pinecone. Це контрольний pipeline, з яким порівнюються покращення.
+
+### Cross-encoder reranking
+
+Reranking працює у два етапи:
+
+1. Pinecone повертає Top-15 semantic candidates.
+2. `cross-encoder/ms-marco-MiniLM-L-6-v2` оцінює пари «запит + текст chunk» і формує фінальний Top-5.
+
+Cross-encoder не створює нових candidates, а лише змінює порядок уже знайдених Pinecone результатів. Тому релевантний chunk спочатку повинен потрапити в Top-15.
+
+### Hybrid BM25 + RRF
+
+Hybrid pipeline формує два незалежні списки:
+
+1. Pinecone повертає Top-15 за semantic similarity.
+2. Локальний BM25 повертає Top-15 за словами з title і text.
+
+Списки об'єднуються через Reciprocal Rank Fusion із `k=60`, після чого береться фінальний Top-5. RRF використовує позиції результатів, а не намагається напряму порівнювати Pinecone score і BM25 score.
+
+### Фільтрація за source
+
+Фільтр застосовується до формування candidates:
+
+- у Pinecone — server-side metadata filter `{"source": {"$eq": "pages|issues"}}`;
+- у hybrid — той самий source додатково обмежує локальний набір chunks для BM25;
+- evaluation dataset також вибирається за source: `pages` або `issues`; без фільтра використовуються всі 10 cases.
+
+Це важливо: фільтрація не виправляє сортування сама по собі, а не дозволяє chunks іншого типу потрапити до candidate list.
+
+### Evaluation і результати
+
+Обидва покращені evaluation scripts рахують однакові метрики: Top-1, Hit@5, MRR і Precision@5. Ground truth спільний для всіх pipelines. Для частини Issues-запитів використовується wildcard на рівні issue, наприклад `issues:dbz:1407:*`, тому їхній Precision@5 не можна напряму трактувати так само, як точні expected chunks для Pages.
+
+Звіти зберігаються в:
+
+- reranking: `data/hw3/output/pinecone_retrieval_evaluation.json` і `.md`;
+- hybrid: `data/hw3/output/pinecone_hybrid_evaluation.json` і `.md`.
+
+Моделі Sentence Transformers і cross-encoder завантажуються під час запуску. Тимчасовий Hugging Face `429 Too Many Requests` не означає помилку retrieval-коду; зазвичай достатньо повторити workflow.
+
+## MongoDB Atlas як окремий експеримент
+
+MongoDB Atlas Vector Search використовувався для перевірки, чи сама заміна FAISS на інше vector storage покращує retrieval. Помітного покращення якості це не дало, тому основне порівняння reranking, hybrid і source-фільтрації виконується на Pinecone.
+
+Для локальної перевірки MongoDB потрібен `MONGODB_URI`:
+
+```bash
+MONGODB_URI="mongodb+srv://..." make build-mongo-index
+MONGODB_URI="mongodb+srv://..." make mongo-semantic-search
+```
+
+У GitHub Actions цим командам відповідають workflows `Build HW3 Mongo Vector Index` і `Check HW3 Mongo Semantic Search`. Для GitHub-hosted runner також потрібно врахувати MongoDB Atlas IP allow-list.
+
