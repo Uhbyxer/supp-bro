@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from pages_evaluation_reference import CASES, EXPECTED_RESULTS_URL
+from pages_evaluation_reference import EvaluationCase, EXPECTED_RESULTS_URL, cases_for_source
 
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
@@ -70,19 +70,19 @@ def rerank(query: str, candidates: list[dict[str, Any]], reranker: Any) -> list[
     return sorted(scored, key=lambda item: item["rerank_score"], reverse=True)
 
 
-def calculate_metrics(results: list[dict[str, Any]], relevant_ids: frozenset[str]) -> dict[str, float]:
+def calculate_metrics(results: list[dict[str, Any]], case: EvaluationCase) -> dict[str, float]:
     ids = [result["chunk_id"] for result in results]
-    ranks = [rank for rank, chunk_id in enumerate(ids, 1) if chunk_id in relevant_ids]
+    ranks = [rank for rank, chunk_id in enumerate(ids, 1) if case.is_relevant(chunk_id)]
     return {
-        "top_1": float(bool(ids and ids[0] in relevant_ids)),
+        "top_1": float(bool(ids and case.is_relevant(ids[0]))),
         "hit_at_5": float(bool(ranks)),
         "mrr": 1.0 / ranks[0] if ranks else 0.0,
-        "precision_at_5": sum(chunk_id in relevant_ids for chunk_id in ids) / FINAL_K,
+        "precision_at_5": sum(case.is_relevant(chunk_id) for chunk_id in ids) / FINAL_K,
     }
 
 
-def first_relevant_rank(results: list[dict[str, Any]], relevant_ids: frozenset[str]) -> int | None:
-    return next((rank for rank, result in enumerate(results, 1) if result["chunk_id"] in relevant_ids), None)
+def first_relevant_rank(results: list[dict[str, Any]], case: EvaluationCase) -> int | None:
+    return next((rank for rank, result in enumerate(results, 1) if case.is_relevant(result["chunk_id"])), None)
 
 
 def aggregate(rows: list[dict[str, Any]]) -> dict[str, float]:
@@ -96,7 +96,7 @@ def compact(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def evaluate(model: Any, reranker: Any, index: Any, namespace: str, source: str | None) -> dict[str, Any]:
     rows = []
-    for case in CASES:
+    for case in cases_for_source(source):
         metadata_filter = {"source": {"$eq": source}} if source else None
         candidates = search(case.query, model, index, namespace, CANDIDATE_K, metadata_filter)
         results = rerank(case.query, candidates, reranker)[:FINAL_K]
@@ -104,9 +104,10 @@ def evaluate(model: Any, reranker: Any, index: Any, namespace: str, source: str 
             {
                 "query": case.query,
                 "metadata_filter": metadata_filter,
-                "relevant_chunk_ids": sorted(case.relevant_ids),
-                "metrics": calculate_metrics(results, case.relevant_ids),
-                "first_relevant_rank": first_relevant_rank(results, case.relevant_ids),
+                "source": case.source,
+                "relevant_chunk_ids": list(case.relevant_patterns),
+                "metrics": calculate_metrics(results, case),
+                "first_relevant_rank": first_relevant_rank(results, case),
                 "results": compact(results),
             }
         )
@@ -144,7 +145,7 @@ def write_outputs(report: dict[str, Any], json_path: Path, summary_path: Path) -
     lines = [
         "# Pinecone retrieval with cross-encoder reranking", "",
         f"Source filter: **{filter_description}**.  ",
-        f"Ground truth: expected chunk IDs from [HW2 Pages]({EXPECTED_RESULTS_URL}).  ",
+        f"Ground truth: expected chunk IDs/patterns from [HW2]({EXPECTED_RESULTS_URL}).  ",
         f"Pipeline: Pinecone Top-{CANDIDATE_K}, cross-encoder reranking, final Top-{FINAL_K}.", "",
         "| Query | Expected chunks | Retrieved chunks | Top-1 | Hit@5 | RR | Precision@5 |",
         "| --- | --- | --- | ---: | ---: | ---: | ---: |",
