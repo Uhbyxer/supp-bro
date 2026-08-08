@@ -1,5 +1,46 @@
 # HW3: retrieval pipeline improvements
 
+Спочатку для пошуку потрібної інформації я використовував FAISS, а далі покращував retrieval у три кроки:
+
+1. **MongoDB і Pinecone.** Я переніс vector search із FAISS у MongoDB Atlas Vector Search і Pinecone, але сама заміна сховища майже не покращила якість результатів.
+2. **Hybrid search і reranking.** Я перевірив два підходи: hybrid retrieval, де BM25-пошук за словами об’єднується із semantic search у Pinecone через RRF, і cross-encoder reranking, який повторно сортує знайдені Pinecone результати. Обидва варіанти стали стабільніше знаходити правильну відповідь.
+3. **Фільтрація.** На останньому кроці я додав фільтр за `source`, щоб можна було шукати в усіх даних або окремо лише в документації (`pages`) чи GitHub issues (`issues`).
+
+## Як покращувався retrieval
+
+Після переходу з локального FAISS на MongoDB Atlas Vector Search і Pinecone стало зрозуміло, що сама заміна vector storage не вирішує проблему якості пошуку. Тому далі були реалізовані й порівняні два окремі способи покращення:
+
+- **Cross-encoder reranking** — Pinecone спочатку знаходить 15 кандидатів, після чого cross-encoder повторно оцінює їх разом із запитом і формує фінальний Top-5.
+- **Hybrid retrieval** — результати semantic search у Pinecone поєднуються з BM25 keyword search, а фінальний порядок Top-5 визначається за допомогою RRF.
+
+В обох pipeline можна вибрати фільтр за metadata-полем `source`:
+
+- порожнє значення — пошук одночасно в `pages` та `issues`;
+- `pages` — пошук лише в документації;
+- `issues` — пошук лише в GitHub issues.
+
+Evaluation використовує однаковий набір із 10 запитів: 5 для документації та 5 для issues. Якщо вибрано конкретний `source`, оцінюються лише відповідні 5 запитів.
+
+### Результати без фільтрації
+
+| Pipeline | Top-1 | Hit@5 | MRR | Precision@5 |
+|---|---:|---:|---:|---:|
+| Cross-encoder reranking | 80% | 100% | 0.90 | 58% |
+| Hybrid BM25 + RRF | 80% | 100% | 0.90 | **62%** |
+
+Обидва покращені підходи знаходять релевантний результат у Top-5 для всіх 10 запитів. За Top-1, Hit@5 і MRR вони показали однаковий результат. Hybrid retrieval має трохи вищий Precision@5, тобто частіше повертає додаткові релевантні chunks серед перших п’яти результатів.
+
+Результати за типом джерела:
+
+| Dataset | Pipeline | Top-1 | Hit@5 | MRR | Precision@5 |
+|---|---|---:|---:|---:|---:|
+| Pages | Cross-encoder reranking | 60% | 100% | 0.80 | 48% |
+| Pages | Hybrid BM25 + RRF | 60% | 100% | 0.80 | **52%** |
+| Issues | Cross-encoder reranking | 100% | 100% | 1.00 | 68% |
+| Issues | Hybrid BM25 + RRF | 100% | 100% | 1.00 | **72%** |
+
+Зараз hybrid retrieval показує найкращий загальний результат, хоча перевага невелика й проявляється лише в Precision@5. Для Issues значення Precision@5 треба трактувати обережно: для частини тестів релевантним вважається будь-який chunk правильного issue, тоді як для Pages expected chunks задані точніше.
+
 HW3 фокусується на покращенні retrieval pipeline після локального FAISS baseline з HW2.
 Перше покращення - перенести semantic retrieval storage у MongoDB Atlas Vector Search, щоб chunk text, metadata та embeddings зберігалися в одній searchable collection.
 
