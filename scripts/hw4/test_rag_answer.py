@@ -22,8 +22,9 @@ retrieval.search = lambda *args: []
 sys.modules[hybrid.__name__] = hybrid
 sys.modules[retrieval.__name__] = retrieval
 
-from rag_answer import (FALLBACK, RetrievedChunk, build_prompt, generate,
-                        validate_payload, weak_context_reason)
+from rag_answer import (FALLBACK, GenerationResult, RetrievedChunk, build_output,
+                        build_prompt, generate, validate_payload,
+                        weak_context_reason)
 
 
 def chunk(score=0.8, chunk_id="pages:test:one"):
@@ -64,6 +65,16 @@ class GroundingTests(unittest.TestCase):
     def test_llm_fallback(self):
         result = validate_payload({"has_enough_context": False, "answer": FALLBACK, "citations": []}, [chunk()])
         self.assertEqual("llm_reports_insufficient_context", result.fallback_reason)
+
+    def test_output_contains_context_text_without_duplicate_sources(self):
+        chunks = [chunk(.8)]
+        result = GenerationResult("grounded_answer", "Fact.", ["pages:test:one"])
+        output = build_output("Question?", chunks, result, .3)
+        self.assertEqual(.3, output["min_vector_score"])
+        self.assertEqual("Supported fact.", output["retrieved_context_by_id"]["pages:test:one"]["text"])
+        self.assertEqual(["pages:test:one"], output["citations"])
+        self.assertNotIn("sources", output)
+        self.assertNotIn("retrieved_chunks", output)
 
     def test_exactly_once_scenario(self):
         exact_id = "pages:configuration:eos:kafka_connect_exactly_once_support_for_source_connector"
