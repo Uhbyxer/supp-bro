@@ -5,6 +5,8 @@ on:
       question: {description: Question to answer, required: true, type: string}
       source:
         {description: Limit retrieval source, required: false, type: choice, default: "", options: ["", pages, issues]}
+      min_vector_score:
+        {description: Minimum best vector score before calling the LLM, required: true, type: number, default: 0.30}
 permissions: {contents: read}
 jobs:
   answer:
@@ -24,9 +26,11 @@ jobs:
         env:
           QUESTION: ${{ inputs.question }}
           SOURCE: ${{ inputs.source }}
+          MIN_VECTOR_SCORE: ${{ inputs.min_vector_score }}
         run: |
           args=("$QUESTION")
           if [[ -n "$SOURCE" ]]; then args+=(--source "$SOURCE"); fi
+          args+=(--min-vector-score "$MIN_VECTOR_SCORE")
           .venv/bin/python scripts/hw4/rag_answer.py "${args[@]}" | tee hw4-rag-answer.json
       - if: always()
         run: |

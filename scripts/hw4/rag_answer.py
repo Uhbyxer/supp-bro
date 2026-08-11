@@ -116,6 +116,23 @@ def generate(question: str, chunks: list[RetrievedChunk], client: Any, model: st
     return result
 
 
+def build_output(question: str, chunks: list[RetrievedChunk], result: GenerationResult, threshold: float) -> dict[str, Any]:
+    return {
+        "question": question,
+        "min_vector_score": threshold,
+        "retrieved_context_by_id": {
+            chunk.chunk_id: {
+                "text": chunk.text,
+                "source_file": chunk.source_file,
+                "rrf_score": chunk.rrf_score,
+                "vector_score": chunk.vector_score,
+            }
+            for chunk in chunks
+        },
+        **asdict(result),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("question")
@@ -133,7 +150,7 @@ def main() -> None:
     chunks = retrieve(args.question, embedding_model, index, os.getenv("PINECONE_NAMESPACE", DEFAULT_NAMESPACE), load_chunks(), args.source, args.top_k)
     LOGGER.info("retrieved_count=%d max_vector_score=%s chunk_ids=%s", len(chunks), max((c.vector_score for c in chunks if c.vector_score is not None), default=None), [c.chunk_id for c in chunks])
     result = generate(args.question, chunks, OpenAI(api_key=required_env("OPENAI_API_KEY")), args.model, args.min_vector_score)
-    print(json.dumps({"question": args.question, "retrieved_chunks": [{"chunk_id": c.chunk_id, "source_file": c.source_file, "rrf_score": c.rrf_score, "vector_score": c.vector_score} for c in chunks], **asdict(result), "sources": result.citations}, indent=2, ensure_ascii=False))
+    print(json.dumps(build_output(args.question, chunks, result, args.min_vector_score), indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":
