@@ -1,0 +1,38 @@
+name: Run HW4 Grounded RAG Answer
+on:
+  workflow_dispatch:
+    inputs:
+      question: {description: Question to answer, required: true, type: string}
+      source:
+        {description: Limit retrieval source, required: false, type: choice, default: "", options: ["", pages, issues]}
+permissions: {contents: read}
+jobs:
+  answer:
+    runs-on: ubuntu-latest
+    env:
+      PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      PINECONE_INDEX: supp-bro
+      PINECONE_NAMESPACE: hw3-pinecone-vector
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip}
+      - run: make setup
+      - run: .venv/bin/python -m unittest scripts/hw4/test_rag_answer.py
+      - name: Generate grounded answer
+        env:
+          QUESTION: ${{ inputs.question }}
+          SOURCE: ${{ inputs.source }}
+        run: |
+          args=("$QUESTION")
+          if [[ -n "$SOURCE" ]]; then args+=(--source "$SOURCE"); fi
+          .venv/bin/python scripts/hw4/rag_answer.py "${args[@]}" | tee hw4-rag-answer.json
+      - if: always()
+        run: |
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat hw4-rag-answer.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: {name: hw4-rag-answer, path: hw4-rag-answer.json}
