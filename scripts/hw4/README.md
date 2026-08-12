@@ -97,6 +97,12 @@ What is the weather today?
 
 Best retrieved vector score was only `0.103`, so retrieval found unrelated Debezium chunks. The weakest configuration still produced an answer because both the retrieval filter and post-validator were disabled.
 
+Script answer in the weakest configuration (`weak_no_filter_no_validator`):
+
+```text
+I'm unable to provide information about the weather today. Please check a reliable weather service or app for the latest updates.
+```
+
 | Experiment | Prompt | Post validator | Min vector score | Best vector score | Status | Fallback reason | Citations | Comment | Expected? |
 |---|---|---|---:|---:|---|---|---|---|---|
 | `weak_no_filter_no_validator` | `weak` | `off` | 0.00 | 0.103 | `unvalidated_answer` | - | - | Model answered freely and said it cannot provide current weather; this is model behavior without guardrails. | Yes |
