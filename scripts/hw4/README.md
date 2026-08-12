@@ -124,6 +124,33 @@ I'm unable to provide information about the weather today. Please check a reliab
 
 Висновок: нерелевантне питання про погоду показує всі guardrail layers. Коли обидва guardrails вимкнені, модель дає unvalidated general answer. Коли post-validation увімкнений, fallback стається після виклику моделі. Коли retrieval filter увімкнений, fallback стається ще до виклику моделі, бо retrieval слабкий.
 
+### Query 2: нечітке Debezium-питання
+
+Run: [31604105353](https://github.com/Uhbyxer/supp-bro/actions/runs/31604105353)
+
+Питання:
+
+```text
+Something wrong with back pressure
+```
+
+Найкращий retrieved vector score був `0.169`, тобто нижче за поточний threshold `0.30`. Формально retrieval вважається слабким, але знайдені chunks не були повністю випадковими: вони стосувалися batch size, PostgreSQL foreign key constraint violations і можливого зв'язку з back pressure / buffer lock.
+
+| Experiment | Prompt | Post validator | Min vector score | Best vector score | Status | Fallback reason | Citations | Коментар | Очікувано? |
+|---|---|---|---:|---:|---|---|---|---|---|
+| `weak_no_filter_no_validator` | `weak` | `off` | 0.00 | 0.169 | `unvalidated_answer` | - | `issues:dbz:73:chunk_002`, `issues:dbz:73:chunk_003` | Weak prompt без guardrails дав розгорнуту відповідь і використав частково релевантні chunks. | Так |
+| `weak_no_filter_with_validator` | `weak` | `on` | 0.00 | 0.169 | `grounded_answer` | - | `issues:dbz:73:chunk_002`, `issues:dbz:73:chunk_003` | Навіть із post-validator відповідь пройшла, бо citations збіглися з retrieved chunk IDs. | Так |
+| `strong_no_filter_no_validator` | `strong` | `off` | 0.00 | 0.169 | `model_fallback` | `invalid_llm_response` | - | Strong prompt був обережніший і відмовився відповідати на нечіткий context. | Так |
+| `strong_no_filter_with_validator` | `strong` | `on` | 0.00 | 0.169 | `model_fallback` | `llm_reports_insufficient_context` | - | Strong prompt із validator підтвердив, що context недостатньо прямий. | Так |
+| `weak_filter_no_validator` | `weak` | `off` | 0.30 | 0.169 | `retrieval_filter_fallback` | `weak_retrieval` | - | Retrieval filter заблокував відповідь до LLM через score нижче threshold. | Так |
+| `weak_filter_with_validator` | `weak` | `on` | 0.30 | 0.169 | `retrieval_filter_fallback` | `weak_retrieval` | - | Такий самий блок на retrieval filter; validator не запускався. | Так |
+| `strong_filter_no_validator` | `strong` | `off` | 0.30 | 0.169 | `retrieval_filter_fallback` | `weak_retrieval` | - | Filter однаково блокує strong prompt до виклику LLM. | Так |
+| `strong_filter_with_validator` | `strong` | `on` | 0.30 | 0.169 | `retrieval_filter_fallback` | `weak_retrieval` | - | Production-like режим відмовився відповідати через слабкий retrieval. | Так |
+
+Висновок: цей запит показує різницю між слабким і сильним prompt. Weak prompt без retrieval filter зміг використати частково релевантні chunks і навіть пройти post-validator, але strong prompt відмовився, бо питання було надто нечітким. Усі filter-режими повернули `weak_retrieval`, що очікувано для threshold `0.30`, але цей приклад показує ризик занадто суворого порога: частково корисна відповідь може бути заблокована.
+
+Для подальшого розвитку агента це хороший кейс: замість одразу давати fallback або впевнено відповідати, агент міг би поставити уточнюючі питання. Наприклад, попросити вказати connector type, повний error message, batch size, database і фрагмент логів. Тоді система могла б перейти від нечіткого запиту до більш точного retrieval і дати grounded answer з меншим ризиком.
+
 ## Prompt improvements
 
 1. Відповідь обмежена retrieved context і має явний fallback.
