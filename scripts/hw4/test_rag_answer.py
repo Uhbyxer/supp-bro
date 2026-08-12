@@ -57,7 +57,9 @@ class GroundingTests(unittest.TestCase):
         strong = build_prompt("Question?", [chunk()], "strong")
         weak = build_prompt("Question?", [chunk()], "weak")
         self.assertIn("ONLY the context", strong)
-        self.assertIn("partially relevant", weak)
+        self.assertIn("Answer the user's question directly and helpfully.", weak)
+        self.assertIn("Add citations from the retrieved CHUNK_ID values when possible.", weak)
+        self.assertNotIn("partially relevant", weak)
 
     def test_retrieval_reasons(self):
         self.assertEqual("empty_retrieval", weak_context_reason([], .3))
