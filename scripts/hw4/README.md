@@ -73,6 +73,49 @@ Experiment mode додає в artifact поле `summary_markdown` із табл
 | `strong_filter_no_validator` | `strong` | `off` | 0.30 | query-dependent | model/filter | reason | IDs | Ізолює retrieval filter для strict prompt. |
 | `strong_filter_with_validator` | `strong` | `on` | 0.30 | query-dependent | model/filter | reason | IDs | Основний production-like варіант. |
 
+## План експериментів і спостереження
+
+Загалом проганяємо 5 test queries через однакову 8-way matrix. Набір включає:
+
+| # | Тип запиту | Мета |
+|---:|---|---|
+| 1 | Повністю нерелевантне питання | Перевірити, що слабкий retrieval і guardrails поводяться очікувано для питання поза Debezium context. |
+| 2 | Нечітке Debezium-питання | Перевірити, чи no-filter режими покажуть поведінку моделі, а filter режими заблокують слабкий retrieval. |
+| 3 | Нечітке переформульоване Debezium-питання | Перевірити, чи hybrid retrieval зможе знайти частково релевантний issue/page. |
+| 4 | Пряме питання з відповіддю в context | Перевірити grounded answer із валідними citations. |
+| 5 | Ще одне пряме питання з відповіддю в context | Перевірити стабільність grounded answer на іншому known-answer query. |
+
+### Query 1: нерелевантне питання
+
+Run: [31600084357](https://github.com/Uhbyxer/supp-bro/actions/runs/31600084357)
+
+Питання:
+
+```text
+What is the weather today?
+```
+
+Найкращий retrieved vector score був лише `0.103`, тому retrieval знайшов нерелевантні Debezium chunks. Найслабша конфігурація все одно дала відповідь, бо retrieval filter і post-validator були вимкнені.
+
+Відповідь скрипта в найслабшій конфігурації (`weak_no_filter_no_validator`):
+
+```text
+I'm unable to provide information about the weather today. Please check a reliable weather service or app for the latest updates.
+```
+
+| Experiment | Prompt | Post validator | Min vector score | Best vector score | Status | Fallback reason | Citations | Коментар | Очікувано? |
+|---|---|---|---:|---:|---|---|---|---|---|
+| `weak_no_filter_no_validator` | `weak` | `off` | 0.00 | 0.103 | `unvalidated_answer` | - | - | Модель відповіла вільно і сказала, що не може надати поточну погоду; це поведінка моделі без guardrails. | Так |
+| `weak_no_filter_with_validator` | `weak` | `on` | 0.00 | 0.103 | `model_fallback` | `llm_reports_insufficient_context` | - | Weak prompt дійшов до моделі, але post-validation/model context check не дозволив grounded answer. | Так |
+| `strong_no_filter_no_validator` | `strong` | `off` | 0.00 | 0.103 | `model_fallback` | `invalid_llm_response` | - | Strong prompt відмовився або повернув fallback-like відповідь; навіть без validator порожня/fallback-відповідь відхиляється як invalid. | Так |
+| `strong_no_filter_with_validator` | `strong` | `on` | 0.00 | 0.103 | `model_fallback` | `llm_reports_insufficient_context` | - | Strong prompt коректно повідомив, що context недостатній. | Так |
+| `weak_filter_no_validator` | `weak` | `off` | 0.30 | 0.103 | `retrieval_filter_fallback` | `weak_retrieval` | - | Retrieval filter заблокував відповідь до виклику LLM, бо score нижчий за threshold. | Так |
+| `weak_filter_with_validator` | `weak` | `on` | 0.30 | 0.103 | `retrieval_filter_fallback` | `weak_retrieval` | - | Такий самий блок на retrieval filter; post-validator взагалі не запускався. | Так |
+| `strong_filter_no_validator` | `strong` | `off` | 0.30 | 0.103 | `retrieval_filter_fallback` | `weak_retrieval` | - | Такий самий блок на retrieval filter для strong prompt. | Так |
+| `strong_filter_with_validator` | `strong` | `on` | 0.30 | 0.103 | `retrieval_filter_fallback` | `weak_retrieval` | - | Production-like режим коректно відмовився відповідати до виклику LLM. | Так |
+
+Висновок: нерелевантне питання про погоду показує всі guardrail layers. Коли обидва guardrails вимкнені, модель дає unvalidated general answer. Коли post-validation увімкнений, fallback стається після виклику моделі. Коли retrieval filter увімкнений, fallback стається ще до виклику моделі, бо retrieval слабкий.
+
 ## Prompt improvements
 
 1. Відповідь обмежена retrieved context і має явний fallback.
