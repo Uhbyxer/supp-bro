@@ -28,6 +28,7 @@ from rag_answer import (  # noqa: E402
     RetrievedChunk,
     build_output,
     build_prompt,
+    accept_payload_without_post_validation,
     generate,
     markdown_table,
     run_experiments,
@@ -82,16 +83,26 @@ class GroundingTests(unittest.TestCase):
         result = validate_payload({"has_enough_context": False, "answer": FALLBACK, "citations": []}, [chunk()])
         self.assertEqual("model_fallback", result.status)
         self.assertEqual("llm_reports_insufficient_context", result.fallback_reason)
-        filtered = generate("Question?", [chunk(.2)], FakeClient({}), "gpt-4o-mini", .3, "strong")
+        filtered = generate("Question?", [chunk(.2)], FakeClient({}), "gpt-4o-mini", .3, "strong", "on")
         self.assertEqual("retrieval_filter_fallback", filtered.status)
         self.assertEqual("weak_retrieval", filtered.fallback_reason)
+
+    def test_post_validator_can_be_disabled(self):
+        payload = {"has_enough_context": True, "answer": "Free answer.", "citations": []}
+        strict = validate_payload(payload, [chunk()])
+        relaxed = accept_payload_without_post_validation(payload)
+        self.assertEqual("model_fallback", strict.status)
+        self.assertEqual("invalid_or_missing_citation", strict.fallback_reason)
+        self.assertEqual("unvalidated_answer", relaxed.status)
+        self.assertEqual("Free answer.", relaxed.answer)
 
     def test_output_contains_context_text_without_duplicate_sources(self):
         chunks = [chunk(.8)]
         result = GenerationResult("grounded_answer", "Fact.", ["pages:test:one"])
-        output = build_output("Question?", chunks, result, .3, "strong")
+        output = build_output("Question?", chunks, result, .3, "strong", "on")
         self.assertEqual(.3, output["min_vector_score"])
         self.assertEqual("strong", output["prompt_flavor"])
+        self.assertEqual("on", output["post_validator"])
         self.assertEqual(.8, output["best_vector_score"])
         self.assertEqual("Supported fact.", output["retrieved_context_by_id"]["pages:test:one"]["text"])
         self.assertEqual(["pages:test:one"], output["citations"])
@@ -101,17 +112,19 @@ class GroundingTests(unittest.TestCase):
     def test_experiment_matrix_and_markdown(self):
         exact_id = "pages:configuration:eos:kafka_connect_exactly_once_support_for_source_connector"
         payload = {"has_enough_context": True, "answer": "Debezium uses Kafka Connect exactly-once support.", "citations": [exact_id]}
-        client = FakeClient([payload, payload, payload, payload])
+        client = FakeClient([payload] * 8)
         output = run_experiments("How does exactly-once work?", [chunk(.78, exact_id)], client, "gpt-4o-mini")
-        self.assertEqual(4, len(output["experiments"]))
-        self.assertIn("| Experiment | Prompt |", output["summary_markdown"])
-        self.assertIn("weak_prompt_no_filter", output["summary_markdown"])
+        self.assertEqual(8, len(output["experiments"]))
+        self.assertIn("| Experiment | Prompt | Post validator |", output["summary_markdown"])
+        self.assertIn("weak_no_filter_no_validator", output["summary_markdown"])
+        self.assertIn("strong_filter_with_validator", output["summary_markdown"])
 
     def test_markdown_table_marks_filter_vs_model_fallback(self):
         table = markdown_table([
             {
                 "experiment": "weak_prompt_with_filter",
                 "prompt_flavor": "weak",
+                "post_validator": "on",
                 "min_vector_score": .3,
                 "best_vector_score": .1,
                 "status": "retrieval_filter_fallback",
@@ -121,6 +134,7 @@ class GroundingTests(unittest.TestCase):
             {
                 "experiment": "strong_prompt_no_filter",
                 "prompt_flavor": "strong",
+                "post_validator": "on",
                 "min_vector_score": 0.0,
                 "best_vector_score": .1,
                 "status": "model_fallback",
@@ -130,6 +144,7 @@ class GroundingTests(unittest.TestCase):
         ])
         self.assertIn("Blocked before LLM", table)
         self.assertIn("LLM or citation validator", table)
+        self.assertIn("Post validator", table)
 
 
 if __name__ == "__main__":
