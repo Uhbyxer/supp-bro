@@ -5,7 +5,7 @@ This task evaluates a grounded RAG answer-generation pipeline for Debezium suppo
 Pipeline:
 
 ```text
-question → source filter → Pinecone + BM25 → RRF → Top-5 → prompt flavor → LLM → citation validation
+question → source filter → Pinecone + BM25 → RRF → Top-5 → prompt flavor → LLM → optional post-validator
 ```
 
 Використано найкращий pipeline HW3: hybrid retrieval із правильним `source` дав Top-1 90%, Hit@5 100%, MRR 0.95 і Precision@5 64%.
@@ -19,13 +19,21 @@ LLM повертає строгий JSON із `has_enough_context`, `answer` і 
 | Flavor | Поведінка |
 |---|---|
 | `strong` | Строгий grounded prompt. Відповідає лише коли context прямо підтримує відповідь. |
-| `weak` | М'якший prompt. Дозволяє відповідати, коли context частково релевантний, але citations усе одно мають бути валідні. |
+| `weak` | Слабкий prompt. Просто просить відповісти на питання і додати citations, якщо це можливо. |
+
+Post-validator можна вмикати окремо:
+
+| Post-validator | Поведінка |
+|---|---|
+| `on` | Перевіряє, що citations не порожні та точно збігаються з retrieved `chunk_id`. |
+| `off` | Приймає відповідь моделі без citation validation і маркує її як `unvalidated_answer`. |
 
 Статуси розділяють, де саме зупинився pipeline:
 
 | Status | Значення |
 |---|---|
 | `grounded_answer` | Модель дала відповідь із валідними citations. |
+| `unvalidated_answer` | Модель дала відповідь, а post-validator був вимкнений. |
 | `retrieval_filter_fallback` | Відповідь заблокована до LLM через `empty_retrieval` або `weak_retrieval`. |
 | `model_fallback` | LLM або citation validator повернули fallback після виклику моделі. |
 
@@ -41,7 +49,7 @@ PINECONE_API_KEY="..." OPENAI_API_KEY="..." \
   make rag-answer QUESTION="How does Debezium achieve exactly-once delivery?" SOURCE=pages
 ```
 
-Параметри: `--source pages|issues`, `--top-k`, `--model`, `--min-vector-score`, `--prompt-flavor strong|weak`, `--experiment`.
+Параметри: `--source pages|issues`, `--top-k`, `--model`, `--min-vector-score`, `--prompt-flavor strong|weak`, `--post-validator on|off`, `--experiment`.
 
 Поріг доступний також як input `min_vector_score` у workflow; default залишається `0.30`. Якщо встановити `0.0`, pre-LLM retrieval filter фактично вимикається і рішення переходить до prompt + model validation. JSON має лише канонічне поле `citations` — дубльоване поле `sources` видалено.
 
@@ -49,25 +57,30 @@ Workflow `Run HW4 Grounded RAG Answer` має два режими:
 
 | Mode | Що робить |
 |---|---|
-| `single` | Один запуск із вибраним `prompt_flavor` і `min_vector_score`. |
-| `experiment` | Для одного query запускає 4 варіанти: weak/no filter, strong/no filter, weak/filter, strong/filter. |
+| `single` | Один запуск із вибраними `prompt_flavor`, `post_validator` і `min_vector_score`. |
+| `experiment` | Для одного query запускає 8 варіантів: prompt `weak/strong` × retrieval filter `off/on` × post-validator `off/on`. |
 
 Experiment mode додає в artifact поле `summary_markdown` із таблицею:
 
-| Experiment | Prompt | Min vector score | Best vector score | Status | Fallback reason | Citations | Conclusion |
-|---|---|---:|---:|---|---|---|---|
-| `weak_prompt_no_filter` | `weak` | 0.00 | query-dependent | model/result | reason | IDs | Перевіряє, чи м'який prompt відповідає без retrieval filter. |
-| `strong_prompt_no_filter` | `strong` | 0.00 | query-dependent | model/result | reason | IDs | Перевіряє, чи строгий prompt сам відмовиться без retrieval filter. |
-| `weak_prompt_with_filter` | `weak` | 0.30 | query-dependent | model/filter | reason | IDs | Перевіряє ефект retrieval filter із м'яким prompt. |
-| `strong_prompt_with_filter` | `strong` | 0.30 | query-dependent | model/filter | reason | IDs | Основний production-like варіант. |
+| Experiment | Prompt | Post validator | Min vector score | Best vector score | Status | Fallback reason | Citations | Conclusion |
+|---|---|---|---:|---:|---|---|---|---|
+| `weak_no_filter_no_validator` | `weak` | `off` | 0.00 | query-dependent | model/result | reason | IDs | Перевіряє, що слабкий prompt відповідає без guardrails. |
+| `weak_no_filter_with_validator` | `weak` | `on` | 0.00 | query-dependent | model/result | reason | IDs | Показує, чи саме validator перетворює weak answer на fallback. |
+| `strong_no_filter_no_validator` | `strong` | `off` | 0.00 | query-dependent | model/result | reason | IDs | Перевіряє strict prompt без post-validation. |
+| `strong_no_filter_with_validator` | `strong` | `on` | 0.00 | query-dependent | model/result | reason | IDs | Перевіряє, чи strict prompt сам дає валідні citations. |
+| `weak_filter_no_validator` | `weak` | `off` | 0.30 | query-dependent | model/filter | reason | IDs | Ізолює ефект retrieval filter для weak prompt. |
+| `weak_filter_with_validator` | `weak` | `on` | 0.30 | query-dependent | model/filter | reason | IDs | Показує combined effect filter + validator для weak prompt. |
+| `strong_filter_no_validator` | `strong` | `off` | 0.30 | query-dependent | model/filter | reason | IDs | Ізолює retrieval filter для strict prompt. |
+| `strong_filter_with_validator` | `strong` | `on` | 0.30 | query-dependent | model/filter | reason | IDs | Основний production-like варіант. |
 
 ## Prompt improvements
 
 1. Відповідь обмежена retrieved context і має явний fallback.
 2. Citation повертається структурованим списком та перевіряється проти дозволених IDs.
 3. Слабкий retrieval відсікається до LLM, а кожен fallback має діагностичну причину.
-4. Prompt flavor дозволяє порівняти строгий grounded prompt із м'якшим prompt.
-5. Experiment mode показує різницю між model fallback і retrieval filter fallback в одній таблиці.
+4. Prompt flavor дозволяє порівняти строгий grounded prompt зі слабким prompt.
+5. Post-validator можна вимкнути, щоб відділити поведінку моделі від citation validation.
+6. Experiment mode показує різницю між model fallback, retrieval filter fallback і validator effect в одній таблиці.
 
 ## Test questions
 
@@ -77,8 +90,8 @@ Experiment mode додає в artifact поле `summary_markdown` із табл
 |---|---|
 | Просте питання, де відповідь точно є в context | `grounded_answer` у strong/filter режимі. |
 | Переформульоване питання | `grounded_answer`, якщо hybrid retrieval знайшов правильний issue/page. |
-| Недостатній context | `model_fallback` без filter або `retrieval_filter_fallback`, якщо score слабкий. |
-| Слабкий chunk | `retrieval_filter_fallback` у filter режимах, але no-filter режими показують, що зробила б модель. |
+| Недостатній context | `unvalidated_answer` у weak/no-filter/no-validator може показати відповідь моделі; `model_fallback` або `retrieval_filter_fallback` показують guardrail behavior. |
+| Слабкий chunk | `retrieval_filter_fallback` у filter режимах, а no-filter режими показують різницю між model answer і validator fallback. |
 
 ## Тестування
 
@@ -86,4 +99,4 @@ Experiment mode додає в artifact поле `summary_markdown` із табл
 .venv/bin/python -m unittest scripts/hw4/test_rag_answer.py
 ```
 
-Тести охоплюють слабкий/порожній retrieval, валідну citation, відсутню або вигадану citation, model fallback, retrieval filter fallback, prompt flavors, experiment matrix і markdown-таблицю.
+Тести охоплюють слабкий/порожній retrieval, валідну citation, відсутню або вигадану citation, model fallback, retrieval filter fallback, вимкнений post-validator, prompt flavors, experiment matrix і markdown-таблицю.
