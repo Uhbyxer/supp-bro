@@ -247,6 +247,61 @@ The MongoDB connector is experiencing a backpressure error indicated by the warn
 
 Водночас цей кейс показує, що навіть при хорошому retrieval якість відповіді залежить від prompt. Weak prompt звучить корисніше для support, але частина порад є радше загальним troubleshooting, а не прямо доведеною відповіддю з context. Strong prompt краще grounded, але занадто короткий. Для майбутньої версії агента тут може підійти проміжний режим: дати короткий grounded висновок, а потім окремо поставити уточнюючі питання або позначити загальні рекомендації як припущення.
 
+### Query 5: перефразоване documentation-питання
+
+Run: [31613340042](https://github.com/Uhbyxer/supp-bro/actions/runs/31613340042)
+
+Питання:
+
+```text
+Can I get exactly once delivery
+```
+
+Це коротке і трохи розмовне перефразування documentation-питання про exactly-once delivery. Воно не містить точного заголовка документації, але retrieval знайшов правильні `pages:configuration:eos:*` chunks. Найкращий retrieved vector score був `0.373`, тобто вище за threshold `0.30`, але без великого запасу.
+
+Відповідь скрипта у слабкій конфігурації (`weak_no_filter_no_validator`):
+
+```text
+Yes, you can achieve exactly-once delivery with Debezium when it is deployed as a source connector in the Kafka Connect framework. To enable this feature, ensure that your Kafka Connect version is 3.3.0 or higher and configure the following settings:
+
+1. In the Kafka Connect worker configuration, enable exactly-once delivery by adding:
+   exactly.once.source.support=enabled
+
+2. In the specific source connector configuration, include:
+   exactly.once.support=required
+
+Additionally, ensure that the `transaction.boundary` is set to `poll`, which is the default setting.
+
+Debezium connectors that support exactly-once delivery include MariaDB, MongoDB, MySQL, Oracle, PostgreSQL, and SQL Server. However, be aware that while Kafka Connect supports exactly-once delivery, there are known issues with Kafka's transaction protocol that may affect this guarantee.
+```
+
+Відповідь скрипта у сильній конфігурації з filter і validator (`strong_filter_with_validator`):
+
+```text
+Yes, you can achieve exactly-once delivery with Debezium when it is deployed as a source connector in the Kafka Connect framework, provided that Kafka is running in distributed mode and the appropriate configurations are set.
+```
+
+| Experiment | Prompt | Post validator | Min vector score | Best vector score | Status | Fallback reason | Citations | Коментар | Очікувано? |
+|---|---|---|---:|---:|---|---|---|---|---|
+| `weak_no_filter_no_validator` | `weak` | `off` | 0.00 | 0.373 | `unvalidated_answer` | - | `pages:configuration:eos:overview`, `pages:configuration:eos:kafka_connect_exactly_once_support_for_source_connector`, `pages:configuration:eos:configuration`, `pages:configuration:eos:debezium_connectors_supporting_exactly_once_delivery` | Weak prompt дав корисну відповідь із конкретними config options, але без validator вона лишається unvalidated. | Так |
+| `weak_no_filter_with_validator` | `weak` | `on` | 0.00 | 0.373 | `grounded_answer` | - | `pages:configuration:eos:kafka_connect_exactly_once_support_for_source_connector`, `pages:configuration:eos:configuration`, `pages:configuration:eos:debezium_connectors_supporting_exactly_once_delivery` | Post-validator підтвердив citations, відповідь grounded і достатньо детальна. | Так |
+| `strong_no_filter_no_validator` | `strong` | `off` | 0.00 | 0.373 | `unvalidated_answer` | - | `pages:configuration:eos:overview`, `pages:configuration:eos:kafka_connect_exactly_once_support_for_source_connector`, `pages:configuration:eos:configuration` | Strong prompt відповідає правильно, але занадто коротко. | Так |
+| `strong_no_filter_with_validator` | `strong` | `on` | 0.00 | 0.373 | `grounded_answer` | - | `pages:configuration:eos:overview`, `pages:configuration:eos:kafka_connect_exactly_once_support_for_source_connector`, `pages:configuration:eos:configuration` | Strong prompt із validator дає grounded answer, але без деталей config. | Так |
+| `weak_filter_no_validator` | `weak` | `off` | 0.30 | 0.373 | `unvalidated_answer` | - | `pages:configuration:eos:overview`, `pages:configuration:eos:kafka_connect_exactly_once_support_for_source_connector`, `pages:configuration:eos:configuration`, `pages:configuration:eos:debezium_connectors_supporting_exactly_once_delivery` | Filter пропустив retrieval, бо score вище threshold. | Так |
+| `weak_filter_with_validator` | `weak` | `on` | 0.30 | 0.373 | `grounded_answer` | - | `pages:configuration:eos:kafka_connect_exactly_once_support_for_source_connector`, `pages:configuration:eos:configuration`, `pages:configuration:eos:debezium_connectors_supporting_exactly_once_delivery` | Найкорисніший режим для цього docs query: є filter, validator і достатньо деталей. | Так |
+| `strong_filter_no_validator` | `strong` | `off` | 0.30 | 0.373 | `unvalidated_answer` | - | `pages:configuration:eos:overview`, `pages:configuration:eos:kafka_connect_exactly_once_support_for_source_connector`, `pages:configuration:eos:configuration` | Filter пропускає, але validator вимкнений. | Так |
+| `strong_filter_with_validator` | `strong` | `on` | 0.30 | 0.373 | `grounded_answer` | - | `pages:configuration:eos:overview`, `pages:configuration:eos:kafka_connect_exactly_once_support_for_source_connector`, `pages:configuration:eos:configuration` | Production-like strong режим grounded, але менш корисний для користувача через надто стислу відповідь. | Так |
+
+Висновок: цей query добре закриває documentation-сценарій. Попри коротке й неідеально сформульоване питання, hybrid retrieval знайшов правильні docs chunks про exactly-once semantics. Score `0.373` показує, що threshold `0.30` у цьому випадку спрацював нормально: він не заблокував релевантний context, але запас не дуже великий.
+
+Найцікавіше, що для docs Q&A weak prompt виглядає практичнішим за strong prompt. Він дає конкретні налаштування `exactly.once.source.support=enabled`, `exactly.once.support=required`, `transaction.boundary=poll` і список connector-ів, які підтримують exactly-once delivery. Strong prompt залишається grounded, але відповідь занадто коротка. Це показує, що production prompt має бути не просто суворим, а збалансованим: відповідати тільки з context, але не викидати корисні деталі, якщо вони прямо є в retrieved chunks.
+
+## Загальний висновок по 5 queries
+
+П'ять експериментів показали поступовий перехід від повністю нерелевантного питання до нормальних in-context запитів. Для нерелевантного query guardrails коректно блокують відповідь або переводять її у fallback. Для дуже нечіткого Debezium-питання fixed threshold `0.30` може бути занадто суворим, бо частково релевантний context блокується. Для точніших issue/logs питань retrieval працює добре, але weak prompt іноді додає загальні troubleshooting поради, які не повністю підтверджені context.
+
+Окремо documentation query показав, що strong prompt може бути занадто коротким навіть тоді, коли context містить корисні деталі. Тому найкращий наступний напрямок — зробити проміжний production prompt: відповідь має залишатися grounded і проходити post-validator, але давати більше деталей з context та, коли потрібно, ставити уточнюючі питання замість простого fallback.
+
 ## Prompt improvements
 
 1. Відповідь обмежена retrieved context і має явний fallback.
