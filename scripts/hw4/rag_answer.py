@@ -25,11 +25,16 @@ LOGGER = logging.getLogger("hw4.rag_answer")
 DEFAULT_MIN_VECTOR_SCORE = 0.30
 NO_RETRIEVAL_FILTER_SCORE = 0.0
 PROMPT_FLAVORS = ("strong", "weak")
+POST_VALIDATOR_MODES = ("on", "off")
 EXPERIMENTS = (
-    ("weak_prompt_no_filter", "weak", NO_RETRIEVAL_FILTER_SCORE),
-    ("strong_prompt_no_filter", "strong", NO_RETRIEVAL_FILTER_SCORE),
-    ("weak_prompt_with_filter", "weak", DEFAULT_MIN_VECTOR_SCORE),
-    ("strong_prompt_with_filter", "strong", DEFAULT_MIN_VECTOR_SCORE),
+    ("weak_no_filter_no_validator", "weak", NO_RETRIEVAL_FILTER_SCORE, "off"),
+    ("weak_no_filter_with_validator", "weak", NO_RETRIEVAL_FILTER_SCORE, "on"),
+    ("strong_no_filter_no_validator", "strong", NO_RETRIEVAL_FILTER_SCORE, "off"),
+    ("strong_no_filter_with_validator", "strong", NO_RETRIEVAL_FILTER_SCORE, "on"),
+    ("weak_filter_no_validator", "weak", DEFAULT_MIN_VECTOR_SCORE, "off"),
+    ("weak_filter_with_validator", "weak", DEFAULT_MIN_VECTOR_SCORE, "on"),
+    ("strong_filter_no_validator", "strong", DEFAULT_MIN_VECTOR_SCORE, "off"),
+    ("strong_filter_with_validator", "strong", DEFAULT_MIN_VECTOR_SCORE, "on"),
 )
 
 RESPONSE_SCHEMA = {
@@ -113,10 +118,18 @@ def validate_payload(payload: dict[str, Any], chunks: list[RetrievedChunk]) -> G
     return GenerationResult("grounded_answer", answer, citations)
 
 
-def generate(question: str, chunks: list[RetrievedChunk], client: Any, model: str, threshold: float, prompt_flavor: str) -> GenerationResult:
+def accept_payload_without_post_validation(payload: dict[str, Any]) -> GenerationResult:
+    answer = payload.get("answer", "").strip()
+    if not answer or answer == FALLBACK:
+        return GenerationResult("model_fallback", FALLBACK, [], "invalid_llm_response")
+    citations = list(dict.fromkeys(payload.get("citations", [])))
+    return GenerationResult("unvalidated_answer", answer, citations)
+
+
+def generate(question: str, chunks: list[RetrievedChunk], client: Any, model: str, threshold: float, prompt_flavor: str, post_validator: str = "on") -> GenerationResult:
     reason = weak_context_reason(chunks, threshold)
     if reason:
-        LOGGER.info("generation_status=retrieval_filter_fallback fallback_reason=%s prompt_flavor=%s min_vector_score=%s", reason, prompt_flavor, threshold)
+        LOGGER.info("generation_status=retrieval_filter_fallback fallback_reason=%s prompt_flavor=%s min_vector_score=%s post_validator=%s", reason, prompt_flavor, threshold, post_validator)
         return GenerationResult("retrieval_filter_fallback", FALLBACK, [], reason)
     try:
         response = client.responses.create(
@@ -126,11 +139,16 @@ def generate(question: str, chunks: list[RetrievedChunk], client: Any, model: st
             text={"format": {"type": "json_schema", "name": "grounded_answer", "strict": True, "schema": RESPONSE_SCHEMA}},
         )
         payload = json.loads(response.output_text)
-        result = validate_payload(payload, chunks)
+        if post_validator == "on":
+            result = validate_payload(payload, chunks)
+        elif post_validator == "off":
+            result = accept_payload_without_post_validation(payload)
+        else:
+            raise ValueError(f"Unsupported post validator mode: {post_validator}")
     except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         LOGGER.warning("invalid_llm_response error=%s", type(exc).__name__)
         result = GenerationResult("model_fallback", FALLBACK, [], "invalid_llm_response")
-    LOGGER.info("generation_status=%s fallback_reason=%s prompt_flavor=%s citations=%s", result.status, result.fallback_reason, prompt_flavor, result.citations)
+    LOGGER.info("generation_status=%s fallback_reason=%s prompt_flavor=%s post_validator=%s citations=%s", result.status, result.fallback_reason, prompt_flavor, post_validator, result.citations)
     return result
 
 
@@ -150,10 +168,11 @@ def build_context_map(chunks: list[RetrievedChunk]) -> dict[str, dict[str, Any]]
     }
 
 
-def build_output(question: str, chunks: list[RetrievedChunk], result: GenerationResult, threshold: float, prompt_flavor: str) -> dict[str, Any]:
+def build_output(question: str, chunks: list[RetrievedChunk], result: GenerationResult, threshold: float, prompt_flavor: str, post_validator: str) -> dict[str, Any]:
     return {
         "question": question,
         "prompt_flavor": prompt_flavor,
+        "post_validator": post_validator,
         "min_vector_score": threshold,
         "best_vector_score": best_vector_score(chunks),
         "retrieved_context_by_id": build_context_map(chunks),
@@ -163,8 +182,8 @@ def build_output(question: str, chunks: list[RetrievedChunk], result: Generation
 
 def markdown_table(rows: list[dict[str, Any]]) -> str:
     lines = [
-        "| Experiment | Prompt | Min vector score | Best vector score | Status | Fallback reason | Citations | Conclusion |",
-        "|---|---|---:|---:|---|---|---|---|",
+        "| Experiment | Prompt | Post validator | Min vector score | Best vector score | Status | Fallback reason | Citations | Conclusion |",
+        "|---|---|---|---:|---:|---|---|---|---|",
     ]
     for row in rows:
         citations = ", ".join(row.get("citations") or []) or "-"
@@ -174,7 +193,7 @@ def markdown_table(rows: list[dict[str, Any]]) -> str:
         threshold_text = f"{threshold:.2f}"
         conclusion = summarize_experiment(row)
         lines.append(
-            f"| {row['experiment']} | {row['prompt_flavor']} | {threshold_text} | {best_text} | "
+            f"| {row['experiment']} | {row['prompt_flavor']} | {row['post_validator']} | {threshold_text} | {best_text} | "
             f"{row['status']} | {row.get('fallback_reason') or '-'} | {citations} | {conclusion} |"
         )
     return "\n".join(lines)
@@ -183,6 +202,8 @@ def markdown_table(rows: list[dict[str, Any]]) -> str:
 def summarize_experiment(row: dict[str, Any]) -> str:
     if row["status"] == "grounded_answer":
         return "Answered with validated citations."
+    if row["status"] == "unvalidated_answer":
+        return "Answered without post-validation."
     if row["status"] == "retrieval_filter_fallback":
         return "Blocked before LLM by retrieval score filter."
     return "LLM or citation validator returned fallback."
@@ -190,9 +211,9 @@ def summarize_experiment(row: dict[str, Any]) -> str:
 
 def run_experiments(question: str, chunks: list[RetrievedChunk], client: Any, model: str) -> dict[str, Any]:
     outputs = []
-    for experiment, prompt_flavor, threshold in EXPERIMENTS:
-        result = generate(question, chunks, client, model, threshold, prompt_flavor)
-        item = build_output(question, chunks, result, threshold, prompt_flavor)
+    for experiment, prompt_flavor, threshold, post_validator in EXPERIMENTS:
+        result = generate(question, chunks, client, model, threshold, prompt_flavor, post_validator)
+        item = build_output(question, chunks, result, threshold, prompt_flavor, post_validator)
         item["experiment"] = experiment
         outputs.append(item)
     return {
@@ -211,6 +232,7 @@ def main() -> None:
     parser.add_argument("--model", default=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
     parser.add_argument("--min-vector-score", type=float, default=float(os.getenv("RAG_MIN_VECTOR_SCORE", str(DEFAULT_MIN_VECTOR_SCORE))))
     parser.add_argument("--prompt-flavor", choices=PROMPT_FLAVORS, default=os.getenv("RAG_PROMPT_FLAVOR", "strong"))
+    parser.add_argument("--post-validator", choices=POST_VALIDATOR_MODES, default=os.getenv("RAG_POST_VALIDATOR", "on"))
     parser.add_argument("--experiment", action="store_true", help="Run weak/strong prompt experiments with and without the retrieval filter.")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
@@ -225,8 +247,8 @@ def main() -> None:
     if args.experiment:
         output = run_experiments(args.question, chunks, client, args.model)
     else:
-        result = generate(args.question, chunks, client, args.model, args.min_vector_score, args.prompt_flavor)
-        output = build_output(args.question, chunks, result, args.min_vector_score, args.prompt_flavor)
+        result = generate(args.question, chunks, client, args.model, args.min_vector_score, args.prompt_flavor, args.post_validator)
+        output = build_output(args.question, chunks, result, args.min_vector_score, args.prompt_flavor, args.post_validator)
     print(json.dumps(output, indent=2, ensure_ascii=False))
 
 
