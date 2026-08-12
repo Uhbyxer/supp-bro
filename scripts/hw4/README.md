@@ -1,6 +1,14 @@
 # HW4: grounded answer generation
 
-This task evaluates a grounded RAG answer-generation pipeline for Debezium support questions. The goal is not only to produce an answer, but to show when the system should refuse to answer because retrieval is weak or the model cannot ground its response in the returned chunks.
+У попередньому завданні найкращим вийшов hybrid retrieval pipeline. У цьому завданні я вирішив покращити його трьома способами: через prompt, retrieval filter і post-validator.
+
+Щоб це перевірити, я підготував різні queries: від повністю нерелевантних і нечітких до питань, де відповідь точно є в context. Кожен query проганяється через різні режими, щоб окремо побачити вплив prompt, filter і post-validator.
+
+Prompt тестується у двох варіантах. Слабкий prompt просто просить модель відповісти на питання і додати citations, якщо це можливо. Сильний prompt суворіший: він вимагає відповідати тільки тоді, коли retrieved context справді підтримує відповідь.
+
+Retrieval filter працює до виклику LLM. Він дивиться на найкращий vector score серед знайдених chunks і блокує відповідь, якщо score нижчий за поріг. Це потрібно, щоб не передавати моделі явно слабкий або нерелевантний context.
+
+Post-validator працює вже після відповіді LLM. Він перевіряє, що модель дала citations і що ці citations точно збігаються з retrieved chunk IDs. Це потрібно, щоб відрізнити grounded answer від просто вільної відповіді моделі.
 
 Pipeline:
 
