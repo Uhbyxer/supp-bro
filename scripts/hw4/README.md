@@ -200,6 +200,53 @@ The error "Unable to acquire buffer lock, buffer queue is likely full" indicates
 
 Різниця між prompt modes тут особливо помітна. Weak prompt дає кориснішу з погляду support-відповіді реакцію, але частина порад виглядає загальною і не повністю підтвердженою context. Strong prompt поводиться обережніше: він майже тільки підтверджує, що це backpressure через заповнену queue. Це хороший наступний кейс для розвитку агента: коли context релевантний, але відповіді недостатньо для повного troubleshooting, агент міг би додати уточнюючі питання або явно відділити факти з context від загальних рекомендацій.
 
+### Query 4: точний MongoDB backpressure запит
+
+Run: [31611269803](https://github.com/Uhbyxer/supp-bro/actions/runs/31611269803)
+
+Питання:
+
+```text
+MongoDB connector backpressure error says unable to acquire buffer lock and queue is full
+```
+
+Це вже майже точний збіг із issue/logs: у query явно є `MongoDB connector`, `backpressure`, `unable to acquire buffer lock` і `queue is full`. Найкращий retrieved vector score піднявся до `0.665`, тобто трохи вище за попередній query із score `0.619`. Retrieval стабільно знаходить той самий релевантний issue про MongoDB connector.
+
+Відповідь скрипта у слабкій конфігурації (`weak_no_filter_no_validator`):
+
+```text
+The warning message you're encountering, "Unable to acquire buffer lock, buffer queue is likely full," indicates that the Debezium MongoDB connector is experiencing backpressure. This typically happens when the connector is unable to process events quickly enough, causing the internal buffer to fill up.
+
+Here are some steps you can take to address this issue:
+
+1. Increase Buffer Size: You can increase the buffer size by adjusting the `debezium.source.mongodb.buffer.size` configuration parameter. This allows the connector to hold more events before backpressure occurs.
+2. Optimize Processing: Ensure that the downstream consumers of the events are processing them efficiently. If they are slow, consider optimizing their performance or scaling them out.
+3. Adjust Heartbeat and Flush Intervals: Review the `debezium.source.heartbeat.interval.ms` and `debezium.source.offset.flush.interval.ms` settings. Lowering these values can help in reducing the load on the buffer.
+4. Monitor Resource Usage: Check the resource usage (CPU, memory, etc.) of the machine running the connector. If resources are constrained, consider scaling up the hardware or optimizing the workload.
+5. Review Logs: Continuously monitor the logs for any other warnings or errors that might provide additional context on the issue.
+```
+
+Відповідь скрипта у сильній конфігурації з filter і validator (`strong_filter_with_validator`):
+
+```text
+The MongoDB connector is experiencing a backpressure error indicated by the warning message: "Unable to acquire buffer lock, buffer queue is likely full." This suggests that the buffer queue cannot accept more data due to being full.
+```
+
+| Experiment | Prompt | Post validator | Min vector score | Best vector score | Status | Fallback reason | Citations | Коментар | Очікувано? |
+|---|---|---|---:|---:|---|---|---|---|---|
+| `weak_no_filter_no_validator` | `weak` | `off` | 0.00 | 0.665 | `unvalidated_answer` | - | `issues:dbz:3:chunk_006`, `issues:dbz:3:chunk_009` | Weak prompt дав розгорнуту support-style відповідь, але без validator вона маркується як unvalidated. | Так |
+| `weak_no_filter_with_validator` | `weak` | `on` | 0.00 | 0.665 | `grounded_answer` | - | `issues:dbz:3:chunk_006`, `issues:dbz:3:chunk_009` | Citations валідні, тому відповідь проходить post-validator. | Так |
+| `strong_no_filter_no_validator` | `strong` | `off` | 0.00 | 0.665 | `unvalidated_answer` | - | `issues:dbz:3:chunk_006`, `issues:dbz:3:chunk_009`, `issues:dbz:3:chunk_004` | Strong prompt дає коротку відповідь, але без validator це все ще unvalidated mode. | Так |
+| `strong_no_filter_with_validator` | `strong` | `on` | 0.00 | 0.665 | `grounded_answer` | - | `issues:dbz:3:chunk_006`, `issues:dbz:3:chunk_009`, `issues:dbz:3:chunk_004` | Strong prompt із validator дає grounded answer. | Так |
+| `weak_filter_no_validator` | `weak` | `off` | 0.30 | 0.665 | `unvalidated_answer` | - | `issues:dbz:3:chunk_006`, `issues:dbz:3:chunk_009` | Retrieval filter не блокує, бо score значно вищий за threshold. | Так |
+| `weak_filter_with_validator` | `weak` | `on` | 0.30 | 0.665 | `grounded_answer` | - | `issues:dbz:3:chunk_006`, `issues:dbz:3:chunk_009` | Weak prompt проходить filter і validator, але відповідь все ще містить загальні рекомендації. | Так |
+| `strong_filter_no_validator` | `strong` | `off` | 0.30 | 0.665 | `unvalidated_answer` | - | `issues:dbz:3:chunk_006`, `issues:dbz:3:chunk_009`, `issues:dbz:3:chunk_004` | Filter пропускає retrieval, але validator вимкнений. | Так |
+| `strong_filter_with_validator` | `strong` | `on` | 0.30 | 0.665 | `grounded_answer` | - | `issues:dbz:3:chunk_006`, `issues:dbz:3:chunk_009`, `issues:dbz:3:chunk_004` | Основний production-like режим працює очікувано: точний retrieval і валідні citations. | Так |
+
+Висновок: точний MongoDB-запит підтвердив, що retrieval pipeline добре реагує на конкретизацію питання. Після додавання connector type і точних слів із error message score зріс до `0.665`, усі filter-режими пройшли, а post-validator підтвердив citations.
+
+Водночас цей кейс показує, що навіть при хорошому retrieval якість відповіді залежить від prompt. Weak prompt звучить корисніше для support, але частина порад є радше загальним troubleshooting, а не прямо доведеною відповіддю з context. Strong prompt краще grounded, але занадто короткий. Для майбутньої версії агента тут може підійти проміжний режим: дати короткий grounded висновок, а потім окремо поставити уточнюючі питання або позначити загальні рекомендації як припущення.
+
 ## Prompt improvements
 
 1. Відповідь обмежена retrieved context і має явний fallback.
