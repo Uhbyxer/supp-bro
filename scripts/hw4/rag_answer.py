@@ -20,7 +20,17 @@ from pinecone_retrieval_evaluation import EMBEDDING_MODEL, required_env, search 
 
 FALLBACK = "I do not have enough information in the retrieved context to answer this question."
 PROMPT = Path(__file__).with_name("prompt_template.txt")
+WEAK_PROMPT = Path(__file__).with_name("prompt_template_weak.txt")
 LOGGER = logging.getLogger("hw4.rag_answer")
+DEFAULT_MIN_VECTOR_SCORE = 0.30
+NO_RETRIEVAL_FILTER_SCORE = 0.0
+PROMPT_FLAVORS = ("strong", "weak")
+EXPERIMENTS = (
+    ("weak_prompt_no_filter", "weak", NO_RETRIEVAL_FILTER_SCORE),
+    ("strong_prompt_no_filter", "strong", NO_RETRIEVAL_FILTER_SCORE),
+    ("weak_prompt_with_filter", "weak", DEFAULT_MIN_VECTOR_SCORE),
+    ("strong_prompt_with_filter", "strong", DEFAULT_MIN_VECTOR_SCORE),
+)
 
 RESPONSE_SCHEMA = {
     "type": "object",
@@ -68,7 +78,7 @@ def weak_context_reason(chunks: list[RetrievedChunk], threshold: float) -> str |
     if not chunks:
         return "empty_retrieval"
     scores = [item.vector_score for item in chunks if item.vector_score is not None]
-    if not scores or max(scores) < threshold:
+    if threshold > 0 and (not scores or max(scores) < threshold):
         return "weak_retrieval"
     return None
 
@@ -77,33 +87,41 @@ def context_is_weak(chunks: list[RetrievedChunk], threshold: float) -> bool:
     return weak_context_reason(chunks, threshold) is not None
 
 
-def build_prompt(question: str, chunks: list[RetrievedChunk]) -> str:
+def prompt_path(prompt_flavor: str) -> Path:
+    if prompt_flavor == "strong":
+        return PROMPT
+    if prompt_flavor == "weak":
+        return WEAK_PROMPT
+    raise ValueError(f"Unsupported prompt flavor: {prompt_flavor}")
+
+
+def build_prompt(question: str, chunks: list[RetrievedChunk], prompt_flavor: str = "strong") -> str:
     context = "\n\n".join(f"CHUNK_ID: {c.chunk_id}\nSOURCE_FILE: {c.source_file}\nTEXT:\n{c.text}" for c in chunks)
-    return PROMPT.read_text(encoding="utf-8").format(retrieved_context=context, user_question=question)
+    return prompt_path(prompt_flavor).read_text(encoding="utf-8").format(retrieved_context=context, user_question=question)
 
 
 def validate_payload(payload: dict[str, Any], chunks: list[RetrievedChunk]) -> GenerationResult:
     if not payload["has_enough_context"]:
-        return GenerationResult("fallback", FALLBACK, [], "llm_reports_insufficient_context")
+        return GenerationResult("model_fallback", FALLBACK, [], "llm_reports_insufficient_context")
     citations = list(dict.fromkeys(payload["citations"]))
     allowed = {chunk.chunk_id for chunk in chunks}
     if not citations or any(citation not in allowed for citation in citations):
-        return GenerationResult("fallback", FALLBACK, [], "invalid_or_missing_citation")
+        return GenerationResult("model_fallback", FALLBACK, [], "invalid_or_missing_citation")
     answer = payload["answer"].strip()
     if not answer or answer == FALLBACK:
-        return GenerationResult("fallback", FALLBACK, [], "invalid_llm_response")
+        return GenerationResult("model_fallback", FALLBACK, [], "invalid_llm_response")
     return GenerationResult("grounded_answer", answer, citations)
 
 
-def generate(question: str, chunks: list[RetrievedChunk], client: Any, model: str, threshold: float) -> GenerationResult:
+def generate(question: str, chunks: list[RetrievedChunk], client: Any, model: str, threshold: float, prompt_flavor: str) -> GenerationResult:
     reason = weak_context_reason(chunks, threshold)
     if reason:
-        LOGGER.info("generation_status=fallback fallback_reason=%s", reason)
-        return GenerationResult("fallback", FALLBACK, [], reason)
+        LOGGER.info("generation_status=retrieval_filter_fallback fallback_reason=%s prompt_flavor=%s min_vector_score=%s", reason, prompt_flavor, threshold)
+        return GenerationResult("retrieval_filter_fallback", FALLBACK, [], reason)
     try:
         response = client.responses.create(
             model=model,
-            input=build_prompt(question, chunks),
+            input=build_prompt(question, chunks, prompt_flavor),
             temperature=0,
             text={"format": {"type": "json_schema", "name": "grounded_answer", "strict": True, "schema": RESPONSE_SCHEMA}},
         )
@@ -111,25 +129,77 @@ def generate(question: str, chunks: list[RetrievedChunk], client: Any, model: st
         result = validate_payload(payload, chunks)
     except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         LOGGER.warning("invalid_llm_response error=%s", type(exc).__name__)
-        result = GenerationResult("fallback", FALLBACK, [], "invalid_llm_response")
-    LOGGER.info("generation_status=%s fallback_reason=%s citations=%s", result.status, result.fallback_reason, result.citations)
+        result = GenerationResult("model_fallback", FALLBACK, [], "invalid_llm_response")
+    LOGGER.info("generation_status=%s fallback_reason=%s prompt_flavor=%s citations=%s", result.status, result.fallback_reason, prompt_flavor, result.citations)
     return result
 
 
-def build_output(question: str, chunks: list[RetrievedChunk], result: GenerationResult, threshold: float) -> dict[str, Any]:
+def best_vector_score(chunks: list[RetrievedChunk]) -> float | None:
+    return max((c.vector_score for c in chunks if c.vector_score is not None), default=None)
+
+
+def build_context_map(chunks: list[RetrievedChunk]) -> dict[str, dict[str, Any]]:
+    return {
+        chunk.chunk_id: {
+            "text": chunk.text,
+            "source_file": chunk.source_file,
+            "rrf_score": chunk.rrf_score,
+            "vector_score": chunk.vector_score,
+        }
+        for chunk in chunks
+    }
+
+
+def build_output(question: str, chunks: list[RetrievedChunk], result: GenerationResult, threshold: float, prompt_flavor: str) -> dict[str, Any]:
     return {
         "question": question,
+        "prompt_flavor": prompt_flavor,
         "min_vector_score": threshold,
-        "retrieved_context_by_id": {
-            chunk.chunk_id: {
-                "text": chunk.text,
-                "source_file": chunk.source_file,
-                "rrf_score": chunk.rrf_score,
-                "vector_score": chunk.vector_score,
-            }
-            for chunk in chunks
-        },
+        "best_vector_score": best_vector_score(chunks),
+        "retrieved_context_by_id": build_context_map(chunks),
         **asdict(result),
+    }
+
+
+def markdown_table(rows: list[dict[str, Any]]) -> str:
+    lines = [
+        "| Experiment | Prompt | Min vector score | Best vector score | Status | Fallback reason | Citations | Conclusion |",
+        "|---|---|---:|---:|---|---|---|---|",
+    ]
+    for row in rows:
+        citations = ", ".join(row.get("citations") or []) or "-"
+        best = row.get("best_vector_score")
+        best_text = "-" if best is None else f"{best:.3f}"
+        threshold = row["min_vector_score"]
+        threshold_text = f"{threshold:.2f}"
+        conclusion = summarize_experiment(row)
+        lines.append(
+            f"| {row['experiment']} | {row['prompt_flavor']} | {threshold_text} | {best_text} | "
+            f"{row['status']} | {row.get('fallback_reason') or '-'} | {citations} | {conclusion} |"
+        )
+    return "\n".join(lines)
+
+
+def summarize_experiment(row: dict[str, Any]) -> str:
+    if row["status"] == "grounded_answer":
+        return "Answered with validated citations."
+    if row["status"] == "retrieval_filter_fallback":
+        return "Blocked before LLM by retrieval score filter."
+    return "LLM or citation validator returned fallback."
+
+
+def run_experiments(question: str, chunks: list[RetrievedChunk], client: Any, model: str) -> dict[str, Any]:
+    outputs = []
+    for experiment, prompt_flavor, threshold in EXPERIMENTS:
+        result = generate(question, chunks, client, model, threshold, prompt_flavor)
+        item = build_output(question, chunks, result, threshold, prompt_flavor)
+        item["experiment"] = experiment
+        outputs.append(item)
+    return {
+        "question": question,
+        "retrieved_context_by_id": build_context_map(chunks),
+        "experiments": outputs,
+        "summary_markdown": markdown_table(outputs),
     }
 
 
@@ -139,7 +209,9 @@ def main() -> None:
     parser.add_argument("--source", choices=("pages", "issues"))
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--model", default=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
-    parser.add_argument("--min-vector-score", type=float, default=float(os.getenv("RAG_MIN_VECTOR_SCORE", "0.30")))
+    parser.add_argument("--min-vector-score", type=float, default=float(os.getenv("RAG_MIN_VECTOR_SCORE", str(DEFAULT_MIN_VECTOR_SCORE))))
+    parser.add_argument("--prompt-flavor", choices=PROMPT_FLAVORS, default=os.getenv("RAG_PROMPT_FLAVOR", "strong"))
+    parser.add_argument("--experiment", action="store_true", help="Run weak/strong prompt experiments with and without the retrieval filter.")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
     from openai import OpenAI
@@ -148,9 +220,14 @@ def main() -> None:
     embedding_model = SentenceTransformer(EMBEDDING_MODEL)
     index = Pinecone(api_key=required_env("PINECONE_API_KEY")).Index(os.getenv("PINECONE_INDEX", DEFAULT_INDEX))
     chunks = retrieve(args.question, embedding_model, index, os.getenv("PINECONE_NAMESPACE", DEFAULT_NAMESPACE), load_chunks(), args.source, args.top_k)
-    LOGGER.info("retrieved_count=%d max_vector_score=%s chunk_ids=%s", len(chunks), max((c.vector_score for c in chunks if c.vector_score is not None), default=None), [c.chunk_id for c in chunks])
-    result = generate(args.question, chunks, OpenAI(api_key=required_env("OPENAI_API_KEY")), args.model, args.min_vector_score)
-    print(json.dumps(build_output(args.question, chunks, result, args.min_vector_score), indent=2, ensure_ascii=False))
+    LOGGER.info("retrieved_count=%d max_vector_score=%s chunk_ids=%s", len(chunks), best_vector_score(chunks), [c.chunk_id for c in chunks])
+    client = OpenAI(api_key=required_env("OPENAI_API_KEY"))
+    if args.experiment:
+        output = run_experiments(args.question, chunks, client, args.model)
+    else:
+        result = generate(args.question, chunks, client, args.model, args.min_vector_score, args.prompt_flavor)
+        output = build_output(args.question, chunks, result, args.min_vector_score, args.prompt_flavor)
+    print(json.dumps(output, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":
