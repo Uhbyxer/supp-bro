@@ -1,6 +1,6 @@
 # HW4: grounded answer generation
 
-У попередньому завданні найкращим вийшов hybrid retrieval pipeline. У цьому завданні я вирішив покращити його трьома способами: через prompt, retrieval filter і post-validator.
+У попередньому завданні я вибрав hybrid retrieval pipeline. У цьому завданні я вирішив покращити його трьома способами: через prompt, retrieval filter і post-validator.
 
 Щоб це перевірити, я підготував різні queries: від повністю нерелевантних і нечітких до питань, де відповідь точно є в context. Кожен query проганяється через різні режими, щоб окремо побачити вплив prompt, filter і post-validator.
 
@@ -16,7 +16,7 @@ Pipeline:
 question → source filter → Pinecone + BM25 → RRF → Top-5 → prompt flavor → LLM → optional post-validator
 ```
 
-Використано найкращий pipeline HW3: hybrid retrieval із правильним `source` дав Top-1 90%, Hit@5 100%, MRR 0.95 і Precision@5 64%.
+Для цього етапу використано вибраний у HW3 hybrid retrieval pipeline.
 
 ## Prompt і grounding
 
@@ -301,31 +301,3 @@ Yes, you can achieve exactly-once delivery with Debezium when it is deployed as 
 П'ять експериментів показали поступовий перехід від повністю нерелевантного питання до нормальних in-context запитів. Для нерелевантного query guardrails коректно блокують відповідь або переводять її у fallback. Для дуже нечіткого Debezium-питання fixed threshold `0.30` може бути занадто суворим, бо частково релевантний context блокується. Для точніших issue/logs питань retrieval працює добре, але weak prompt іноді додає загальні troubleshooting поради, які не повністю підтверджені context.
 
 Окремо documentation query показав, що strong prompt може бути занадто коротким навіть тоді, коли context містить корисні деталі. Тому найкращий наступний напрямок — зробити проміжний production prompt: відповідь має залишатися grounded і проходити post-validator, але давати більше деталей з context та, коли потрібно, ставити уточнюючі питання замість простого fallback.
-
-## Prompt improvements
-
-1. Відповідь обмежена retrieved context і має явний fallback.
-2. Citation повертається структурованим списком та перевіряється проти дозволених IDs.
-3. Слабкий retrieval відсікається до LLM, а кожен fallback має діагностичну причину.
-4. Prompt flavor дозволяє порівняти строгий grounded prompt зі слабким prompt.
-5. Post-validator можна вимкнути, щоб відділити поведінку моделі від citation validation.
-6. Experiment mode показує різницю між model fallback, retrieval filter fallback і validator effect в одній таблиці.
-
-## Test questions
-
-Підготовлено 5-10 test questions у `outputs/rag_answers_examples.md`. Для кожного query можна запускати `experiment` mode і робити висновок за `summary_markdown`:
-
-| Категорія | Очікувана поведінка |
-|---|---|
-| Просте питання, де відповідь точно є в context | `grounded_answer` у strong/filter режимі. |
-| Переформульоване питання | `grounded_answer`, якщо hybrid retrieval знайшов правильний issue/page. |
-| Недостатній context | `unvalidated_answer` у weak/no-filter/no-validator може показати відповідь моделі; `model_fallback` або `retrieval_filter_fallback` показують guardrail behavior. |
-| Слабкий chunk | `retrieval_filter_fallback` у filter режимах, а no-filter режими показують різницю між model answer і validator fallback. |
-
-## Тестування
-
-```bash
-.venv/bin/python -m unittest scripts/hw4/test_rag_answer.py
-```
-
-Тести охоплюють слабкий/порожній retrieval, валідну citation, відсутню або вигадану citation, model fallback, retrieval filter fallback, вимкнений post-validator, prompt flavors, experiment matrix і markdown-таблицю.
