@@ -5,8 +5,12 @@ on:
       question: {description: Question to answer, required: true, type: string}
       source:
         {description: Limit retrieval source, required: false, type: choice, default: "", options: ["", pages, issues]}
+      prompt_flavor:
+        {description: Prompt flavor for single mode, required: true, type: choice, default: strong, options: [strong, weak]}
       min_vector_score:
         {description: Minimum best vector score before calling the LLM, required: true, type: number, default: 0.30}
+      mode:
+        {description: Run one configuration or the 4-way experiment matrix, required: true, type: choice, default: single, options: [single, experiment]}
 permissions: {contents: read}
 jobs:
   answer:
@@ -27,16 +31,30 @@ jobs:
           QUESTION: ${{ inputs.question }}
           SOURCE: ${{ inputs.source }}
           MIN_VECTOR_SCORE: ${{ inputs.min_vector_score }}
+          PROMPT_FLAVOR: ${{ inputs.prompt_flavor }}
+          MODE: ${{ inputs.mode }}
         run: |
           args=("$QUESTION")
           if [[ -n "$SOURCE" ]]; then args+=(--source "$SOURCE"); fi
-          args+=(--min-vector-score "$MIN_VECTOR_SCORE")
+          if [[ "$MODE" == "experiment" ]]; then
+            args+=(--experiment)
+          else
+            args+=(--prompt-flavor "$PROMPT_FLAVOR" --min-vector-score "$MIN_VECTOR_SCORE")
+          fi
           .venv/bin/python scripts/hw4/rag_answer.py "${args[@]}" | tee hw4-rag-answer.json
       - if: always()
         run: |
           echo '```json' >> "$GITHUB_STEP_SUMMARY"
           cat hw4-rag-answer.json >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+          .venv/bin/python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          data = json.loads(Path("hw4-rag-answer.json").read_text())
+          if data.get("summary_markdown"):
+              print("\n## Experiment summary\n")
+              print(data["summary_markdown"])
+          PY
       - if: always()
         uses: actions/upload-artifact@v4
         with: {name: hw4-rag-answer, path: hw4-rag-answer.json}
