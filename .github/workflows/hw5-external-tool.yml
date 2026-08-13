@@ -1,0 +1,62 @@
+name: Run HW5 External Tool Demo
+on:
+  workflow_dispatch:
+    inputs:
+      question:
+        description: User question to route
+        required: true
+        type: string
+      repo:
+        description: GitHub repo for issue context
+        required: true
+        type: string
+        default: debezium/dbz
+      issue_number:
+        description: Optional GitHub issue number override
+        required: false
+        type: string
+        default: ""
+      allow_external_community_search:
+        description: Confirm Stack Overflow/community search
+        required: true
+        type: boolean
+        default: false
+permissions: {contents: read}
+jobs:
+  external-tool:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Run HW5 unit tests
+        run: python -m unittest scripts/hw5/test_external_tool_router.py
+      - name: Run external tool router
+        env:
+          QUESTION: ${{ inputs.question }}
+          REPO: ${{ inputs.repo }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+          ALLOW_EXTERNAL_COMMUNITY_SEARCH: ${{ inputs.allow_external_community_search }}
+        run: |
+          args=("$QUESTION" --repo "$REPO" --output-json hw5-external-tool-result.json --output-md hw5-external-tool-summary.md)
+          if [[ -n "$ISSUE_NUMBER" ]]; then
+            args+=(--issue-number "$ISSUE_NUMBER")
+          fi
+          if [[ "$ALLOW_EXTERNAL_COMMUNITY_SEARCH" == "true" ]]; then
+            args+=(--allow-external-community-search)
+          fi
+          python scripts/hw5/external_tool_router.py "${args[@]}"
+      - if: always()
+        run: |
+          if [[ -f hw5-external-tool-summary.md ]]; then
+            cat hw5-external-tool-summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hw5-external-tool-result
+          path: |
+            hw5-external-tool-result.json
+            hw5-external-tool-summary.md
