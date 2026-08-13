@@ -118,6 +118,19 @@ Output:
 
 Tool layer не приймає raw SQL або довільні небезпечні запити від моделі. Усі tool calls проходять через typed `ToolRequest` і повертають normalized `ToolObservation`.
 
+## Чому tool корисніший за retrieval
+
+HW5 не замінює retrieval повністю. Router вирішує, коли local RAG достатній, а коли треба external tool. Це важливо, бо не кожне питання виграє від зовнішнього API.
+
+| Case | Чому retrieval недостатній | Чому tool кращий |
+|---|---|---|
+| GitHub issue status | Retrieved issue chunk є snapshot-ом і може бути застарілим. | GitHub API повертає live `state`, `updated_at`, `closed_at`, labels і URL. |
+| Issue ownership/activity | Chunk може містити текст issue, але не показує актуальних assignees або recent commenters. | `get_github_issue_context` читає assignees, participants і recent comment authors. |
+| Known error mapped to issue | RAG пояснює зміст помилки, але не знає, чи issue досі активний. | Tool додає current metadata до знайденого known issue. |
+| Stack Overflow/community lookup | Local knowledge base не містить зовнішні community discussions і може не мати recent workarounds. | Stack Exchange API шукає external reports по tag `debezium`; результат явно позначений як community source. |
+| Clarification | Для дуже нечіткого запиту weak retrieval може знайти випадковий context. | Clarification path зупиняє неправильний tool/RAG call і просить connector, exact error message та бажаний source. |
+| Documentation question | Тут retrieval якраз достатній. | External tool не викликається; router повертає `docs_question`, щоб не змішувати authoritative docs із community/API data. |
+
 ## Запуск локально
 
 Single mode:
