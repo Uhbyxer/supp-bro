@@ -3,7 +3,7 @@ VENV ?= .venv
 PIP := $(VENV)/bin/pip
 PYTHON_BIN := $(VENV)/bin/python
 
-.PHONY: setup download-issues build-index semantic-search build-mongo-index mongo-semantic-search build-pinecone-index pinecone-semantic-search pinecone-retrieval-evaluation pinecone-hybrid-evaluation rag-answer
+.PHONY: setup download-issues build-index semantic-search build-mongo-index mongo-semantic-search build-pinecone-index pinecone-semantic-search pinecone-retrieval-evaluation pinecone-hybrid-evaluation rag-answer hw5-external-tool
 setup:
 	$(PYTHON) -m venv $(VENV)
 	$(PYTHON_BIN) -m pip install --upgrade pip
@@ -39,3 +39,6 @@ pinecone-hybrid-evaluation:
 
 rag-answer:
 	$(PYTHON_BIN) scripts/hw4/rag_answer.py $(if $(SOURCE),--source $(SOURCE),) "$(QUESTION)"
+
+hw5-external-tool:
+	$(PYTHON_BIN) scripts/hw5/external_tool_router.py "$(QUESTION)"
