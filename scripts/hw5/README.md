@@ -118,6 +118,30 @@ Output:
 
 Tool layer не приймає raw SQL або довільні небезпечні запити від моделі. Усі tool calls проходять через typed `ToolRequest` і повертають normalized `ToolObservation`.
 
+## Чому tool корисніший за retrieval
+
+HW5 не замінює retrieval повністю. Router вирішує, коли local RAG достатній, а коли треба external tool. Це важливо, бо не кожне питання виграє від зовнішнього API.
+
+| Case | Чому retrieval недостатній | Чому tool кращий |
+|---|---|---|
+| GitHub issue status | Retrieved issue chunk є snapshot-ом і може бути застарілим. | GitHub API повертає live `state`, `updated_at`, `closed_at`, labels і URL. |
+| Issue ownership/activity | Chunk може містити текст issue, але не показує актуальних assignees або recent commenters. | `get_github_issue_context` читає assignees, participants і recent comment authors. |
+| Known error mapped to issue | RAG пояснює зміст помилки, але не знає, чи issue досі активний. | Tool додає current metadata до знайденого known issue. |
+| Stack Overflow/community lookup | Local knowledge base не містить зовнішні community discussions і може не мати recent workarounds. | Stack Exchange API шукає external reports по tag `debezium`; результат явно позначений як community source. |
+| Clarification | Для дуже нечіткого запиту weak retrieval може знайти випадковий context. | Clarification path зупиняє неправильний tool/RAG call і просить connector, exact error message та бажаний source. |
+| Documentation question | Тут retrieval якраз достатній. | External tool не викликається; router повертає `docs_question`, щоб не змішувати authoritative docs із community/API data. |
+
+## Покриття критеріїв оцінювання
+
+| Критерій | Де покрито |
+|---|---|
+| Tool описаний: назва, тип, мета, коли викликати | Секція `Tools`: `get_github_issue_context` і `search_stackoverflow_questions` описані як read-only tools із правилами when to call / when not to call. |
+| Input / output contract визначено | У секції `Tools` є JSON input/output examples для обох tools. |
+| Validation реалізовано | `scripts/hw5/external_tool_router.py`: `validate_repo`, `validate_issue_number`, `validate_search_query`, `validate_tag`, `validate_tool_request`. |
+| Tool реалізовано і запускається | `get_github_issue_context` читає GitHub REST API, `search_stackoverflow_questions` читає Stack Exchange API. Локальний CLI і GitHub Actions запускають ті самі tools. |
+| 3-5 прикладів з поясненням переваги перед retrieval | `outputs/hw5_tool_examples.md` містить 5 examples, а секція `Чому tool корисніший за retrieval` узагальнює аргументацію. |
+| Виклик через orchestration layer або модель показано | `classify_support_intent` → `build_tool_request` → `validate_tool_request` → `execute_tool_request` → `ToolObservation` → `final_answer`. |
+
 ## Запуск локально
 
 Single mode:
