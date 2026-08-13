@@ -2,10 +2,17 @@ name: Run HW5 External Tool Demo
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: Run one question or the built-in demo matrix
+        required: true
+        type: choice
+        default: single
+        options: [single, demo]
       question:
         description: User question to route
-        required: true
+        required: false
         type: string
+        default: ""
       repo:
         description: GitHub repo for issue context
         required: true
@@ -36,11 +43,15 @@ jobs:
       - name: Run external tool router
         env:
           QUESTION: ${{ inputs.question }}
+          MODE: ${{ inputs.mode }}
           REPO: ${{ inputs.repo }}
           ISSUE_NUMBER: ${{ inputs.issue_number }}
           ALLOW_EXTERNAL_COMMUNITY_SEARCH: ${{ inputs.allow_external_community_search }}
         run: |
-          args=("$QUESTION" --repo "$REPO" --output-json hw5-external-tool-result.json --output-md hw5-external-tool-summary.md)
+          args=(--mode "$MODE" --repo "$REPO" --output-json hw5-external-tool-result.json --output-md hw5-external-tool-summary.md)
+          if [[ "$MODE" == "single" ]]; then
+            args=("$QUESTION" "${args[@]}")
+          fi
           if [[ -n "$ISSUE_NUMBER" ]]; then
             args+=(--issue-number "$ISSUE_NUMBER")
           fi

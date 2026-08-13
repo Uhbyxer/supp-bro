@@ -120,6 +120,8 @@ Tool layer не приймає raw SQL або довільні небезпеч�
 
 ## Запуск локально
 
+Single mode:
+
 ```bash
 python scripts/hw5/external_tool_router.py \
   "Is Debezium issue #3 still open?" \
@@ -135,6 +137,15 @@ python scripts/hw5/external_tool_router.py \
   --allow-external-community-search
 ```
 
+Demo mode проганяє 5 predefined cases одним запуском: docs question, explicit GitHub issue, known error, confirmed Stack Overflow lookup і clarification.
+
+```bash
+python scripts/hw5/external_tool_router.py \
+  --mode demo \
+  --output-json hw5-external-tool-result.json \
+  --output-md hw5-external-tool-summary.md
+```
+
 ## GitHub Actions
 
 Workflow `Run HW5 External Tool Demo` дозволяє запустити той самий tool router через `workflow_dispatch`.
@@ -143,7 +154,8 @@ Inputs:
 
 | Input | Meaning |
 |---|---|
-| `question` | User question для routing. |
+| `mode` | `single` для одного question або `demo` для predefined matrix. |
+| `question` | User question для routing. Потрібний тільки в `single` mode. |
 | `repo` | GitHub repo, default `debezium/dbz`. |
 | `issue_number` | Optional issue number override. |
 | `allow_external_community_search` | Confirmation flag для Stack Overflow search. |
