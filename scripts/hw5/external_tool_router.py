@@ -41,6 +41,38 @@ ToolName = Literal[
 DEFAULT_GITHUB_REPO = "debezium/dbz"
 DEFAULT_STACKOVERFLOW_TAG = "debezium"
 USER_AGENT = "supp-bro-hw5-external-tool-demo"
+DEMO_CASES = [
+    {
+        "name": "docs question",
+        "question": "Can I get exactly once delivery?",
+        "allow_external_community_search": False,
+        "issue_number": None,
+    },
+    {
+        "name": "explicit GitHub issue",
+        "question": "Is Debezium issue #3 still open?",
+        "allow_external_community_search": False,
+        "issue_number": 3,
+    },
+    {
+        "name": "known error mapped to issue",
+        "question": "MongoDB connector backpressure error says unable to acquire buffer lock and queue is full",
+        "allow_external_community_search": False,
+        "issue_number": None,
+    },
+    {
+        "name": "confirmed Stack Overflow lookup",
+        "question": "Has anyone seen Debezium unable to acquire buffer lock on Stack Overflow?",
+        "allow_external_community_search": True,
+        "issue_number": None,
+    },
+    {
+        "name": "clarification",
+        "question": "Help",
+        "allow_external_community_search": False,
+        "issue_number": None,
+    },
+]
 
 
 @dataclass
@@ -426,9 +458,56 @@ def render_markdown(state: AgentState) -> str:
     )
 
 
+def render_demo_markdown(states: list[AgentState]) -> str:
+    lines = [
+        "# HW5 external tool demo",
+        "",
+        "This demo runs multiple deterministic support-assistant cases in one execution.",
+        "",
+        "| # | Question | Route | Tool | Success |",
+        "|---:|---|---|---|---|",
+    ]
+    for index, state in enumerate(states, start=1):
+        tool_name = state.tool_request.tool_name if state.tool_request else "none"
+        success = state.observation.success if state.observation else False
+        question = state.user_query.replace("|", "\\|")
+        lines.append(f"| {index} | `{question}` | `{state.route}` | `{tool_name}` | `{success}` |")
+
+    lines.append("")
+    for index, state in enumerate(states, start=1):
+        payload = asdict(state)
+        lines.extend(
+            [
+                f"## Case {index}: {state.route}",
+                "",
+                f"User question: `{state.user_query}`",
+                "",
+                f"Tool called: `{state.tool_request.tool_name if state.tool_request else 'none'}`",
+                "",
+                "Final answer:",
+                "",
+                state.final_answer,
+                "",
+                "Normalized state:",
+                "",
+                "```json",
+                json.dumps(payload, indent=2, ensure_ascii=False),
+                "```",
+                "",
+            ]
+        )
+    return "\n".join(lines)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run HW5 external tool router.")
-    parser.add_argument("question", help="User question to route.")
+    parser.add_argument("question", nargs="?", default="", help="User question to route.")
+    parser.add_argument(
+        "--mode",
+        choices=["single", "demo"],
+        default="single",
+        help="Run one question or the built-in demo matrix.",
+    )
     parser.add_argument("--repo", default=DEFAULT_GITHUB_REPO, help="GitHub repo in owner/name format.")
     parser.add_argument("--issue-number", type=int, default=None, help="GitHub issue number override.")
     parser.add_argument(
@@ -443,6 +522,30 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    if args.mode == "single" and not args.question:
+        raise SystemExit("question is required in single mode")
+
+    if args.mode == "demo":
+        states = [
+            run_agent(
+                question=case["question"],
+                repo=args.repo,
+                issue_number=case["issue_number"],
+                allow_external_community_search=case["allow_external_community_search"],
+                github_token=os.getenv("GITHUB_TOKEN"),
+            )
+            for case in DEMO_CASES
+        ]
+        payload = {"mode": "demo", "cases": [asdict(state) for state in states]}
+        state_json = json.dumps(payload, indent=2, ensure_ascii=False)
+        print(state_json)
+
+        if args.output_json:
+            Path(args.output_json).write_text(state_json + "\n", encoding="utf-8")
+        if args.output_md:
+            Path(args.output_md).write_text(render_demo_markdown(states), encoding="utf-8")
+        return 0
+
     state = run_agent(
         question=args.question,
         repo=args.repo,
