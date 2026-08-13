@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from external_tool_router import (
     ToolRequest,
+    DEMO_CASES,
     classify_support_intent,
     execute_tool_request,
     extract_issue_number,
@@ -68,6 +69,13 @@ class ExternalToolRouterTest(unittest.TestCase):
             normalize_stackoverflow_query("Has anyone seen Debezium buffer lock on Stack Overflow?"),
             "debezium buffer lock",
         )
+
+    def test_demo_cases_cover_main_routes(self) -> None:
+        routes = {classify_support_intent(case["question"])[0] for case in DEMO_CASES}
+        self.assertIn("docs_question", routes)
+        self.assertIn("known_issue_question", routes)
+        self.assertIn("community_troubleshooting", routes)
+        self.assertIn("clarification", routes)
 
 
 if __name__ == "__main__":
