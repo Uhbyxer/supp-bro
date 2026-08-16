@@ -3,7 +3,7 @@ VENV ?= .venv
 PIP := $(VENV)/bin/pip
 PYTHON_BIN := $(VENV)/bin/python
 
-.PHONY: setup download-issues build-index semantic-search build-mongo-index mongo-semantic-search build-pinecone-index pinecone-semantic-search pinecone-retrieval-evaluation pinecone-hybrid-evaluation rag-answer hw5-external-tool
+.PHONY: setup download-issues build-index semantic-search build-mongo-index mongo-semantic-search build-pinecone-index pinecone-semantic-search pinecone-retrieval-evaluation pinecone-hybrid-evaluation rag-answer hw5-external-tool hw6-agentic-workflow hw6-streamlit
 setup:
 	$(PYTHON) -m venv $(VENV)
 	$(PYTHON_BIN) -m pip install --upgrade pip
@@ -42,3 +42,9 @@ rag-answer:
 
 hw5-external-tool:
 	$(PYTHON_BIN) scripts/hw5/external_tool_router.py "$(QUESTION)"
+
+hw6-agentic-workflow:
+	$(PYTHON_BIN) scripts/hw6/agentic_workflow.py "$(QUESTION)"
+
+hw6-streamlit:
+	$(PYTHON_BIN) -m streamlit run scripts/hw6/streamlit_app.py
