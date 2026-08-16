@@ -9,3 +9,4 @@ python-slugify==8.0.4
 pymongo>=4.7.0
 pinecone>=7.0.0
 rank-bm25==0.2.2
+streamlit>=1.37.0
