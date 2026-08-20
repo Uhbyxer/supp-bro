@@ -159,6 +159,18 @@ Demo mode проганяє 5 кейсів:
 | 4 | Community search | `Has anyone seen Debezium unable to acquire buffer lock on Stack Overflow?` | `community_lookup` |
 | 5 | Нечітке питання | `Help with Debezium` | `clarification` |
 
+## Результат прогону
+
+Останній demo run: [GitHub Actions run 32421833638](https://github.com/Uhbyxer/supp-bro/actions/runs/32421833638). Artifact із JSON/Markdown trace: [hw6-agentic-workflow-result](https://github.com/Uhbyxer/supp-bro/actions/runs/32421833638/artifacts/9426025517).
+
+| # | Query | Route | RAG status | Tool | Що відповів бот | Очікувано? | Коментар |
+|---:|---|---|---|---|---|---|---|
+| 1 | `Can I get exactly once delivery?` | `docs_answer` | `grounded_answer` | `none` | Відповів, що exactly-once delivery можливий через Debezium як source connector у Kafka Connect, але Debezium не має власного internal deduplication layer; додав citations. | Так | Це документаційне питання, тому правильно пішов тільки у HW4 RAG без external tool. |
+| 2 | `Backpressure error says unable to acquire buffer lock and queue is full` | `issue_investigation` | `grounded_answer` | `get_github_issue_context` | Пояснив, що помилка означає заповнену buffer queue у MongoDB connector, і додав live GitHub status для `debezium/dbz#3`: issue open, labels `component/mongodb-connector`, `type/bug`, assignees відсутні. | Так | Це найкращий сценарій: RAG знайшов локальний issue context, а GitHub tool додав актуальний стан issue. |
+| 3 | `Is Debezium issue #3 still open and who worked on it?` | `issue_investigation` | `model_fallback` | `get_github_issue_context` | RAG не дав grounded answer, але GitHub tool повернув live status issue #3: open, назву issue, labels, кількість коментарів, updated date і URL. | Так | Для питання про поточний статус GitHub tool важливіший за RAG; fallback RAG тут прийнятний, бо відповідь будується з live API. |
+| 4 | `Has anyone seen Debezium unable to acquire buffer lock on Stack Overflow?` | `community_lookup` | `model_fallback` | `search_stackoverflow_questions` | Відповів, що matching Stack Overflow questions не знайдено, але local RAG observation доступний у trace. | Так | Користувач явно просив Stack Overflow, тому route правильний; нуль результатів теж валідний tool result. |
+| 5 | `Help with Debezium` | `clarification` | `not_called` | `ask_clarifying_question` | Попросив уточнити connector, exact error message і чи шукати в local docs/issues або external community sources. | Так | Нечіткий запит не запускає випадковий retrieval, а переводиться в уточнення. |
+
 ## Запуск CLI
 
 Single mode:
