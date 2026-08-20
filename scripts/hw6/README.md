@@ -208,6 +208,7 @@ cp .env.example .env
 ```
 
 Після цього заповни `OPENAI_API_KEY` і `PINECONE_API_KEY`. Сам `.env` не комітиться, а в GitHub Actions ці значення беруться з repository secrets.
+
 ## Streamlit demo
 
 Streamlit потрібен для фінальної інтерактивної демонстрації: є чат і поруч дашборд, де видно route, active step, план, observations, RAG chunks, tool calls і повний JSON state.
@@ -232,6 +233,34 @@ python -m streamlit run scripts/hw6/streamlit_app.py
 - дозвіл на Stack Overflow/community search;
 - увімкнути або вимкнути HW4 RAG;
 - `min_vector_score` для retrieval filter.
+
+## Streamlit screenshots
+
+Нижче показаний приклад для питання `Is Debezium issue #3 still open and who worked on it?`. Це хороший demo case, бо користувач питає про актуальний стан GitHub issue: локальний RAG може не мати достатнього grounded context, але agentic workflow все одно переходить до live GitHub tool і формує корисну відповідь.
+
+### Chat and route
+
+На головному екрані видно фінальну відповідь бота, route `issue_investigation`, поточний крок `compose_answer` і факт, що RAG fallback був використаний без зупинки всього workflow.
+
+![Streamlit chat answer and selected route](assets/streamlit-chat-route.png)
+
+### Plan trace
+
+Plan trace показує контрольований сценарій: intent classifier вибрав `known_issue_question`, крок `retrieve_issues` не зміг дати grounded answer, після чого workflow продовжився через `read_github_issue` і завершився `compose_answer`.
+
+![Streamlit plan trace for issue investigation](assets/streamlit-plan-trace.png)
+
+### RAG observation
+
+RAG tab пояснює, чому `retrieve_issues` позначений як fallback: локальний retrieval/model не мав достатнього контексту, щоб надійно відповісти на питання про live status issue.
+
+![Streamlit RAG fallback observation](assets/streamlit-rag-fallback.png)
+
+### External tool call
+
+Tools tab показує, що агент викликав HW5 tool `get_github_issue_context` для `debezium/dbz#3` і отримав live metadata з GitHub. Саме цей крок компенсує обмеження retrieval для питань про актуальний стан issue.
+
+![Streamlit GitHub issue tool call](assets/streamlit-tool-call.png)
 
 ## GitHub Actions
 
