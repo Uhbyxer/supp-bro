@@ -17,12 +17,6 @@ from pathlib import Path
 from typing import Any, Literal
 
 ROOT = Path(__file__).resolve().parents[2]
-try:
-    from dotenv import load_dotenv
-except ImportError:  # pragma: no cover - python-dotenv is installed through requirements.txt
-    load_dotenv = None
-if load_dotenv is not None:
-    load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT / "scripts/hw5"))
 
 from external_tool_router import (  # noqa: E402
