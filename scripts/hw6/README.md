@@ -199,6 +199,15 @@ python scripts/hw6/agentic_workflow.py \
   --disable-rag
 ```
 
+## Локальний `.env`
+
+Для локального запуску RAG і Streamlit потрібно створити власний `.env` з шаблону:
+
+```bash
+cp .env.example .env
+```
+
+Після цього заповни `OPENAI_API_KEY` і `PINECONE_API_KEY`. Сам `.env` не комітиться, а в GitHub Actions ці значення беруться з repository secrets.
 ## Streamlit demo
 
 Streamlit потрібен для фінальної інтерактивної демонстрації: є чат і поруч дашборд, де видно route, active step, план, observations, RAG chunks, tool calls і повний JSON state.
