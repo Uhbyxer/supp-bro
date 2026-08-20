@@ -52,6 +52,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "3.11"}
+      - name: Install RAG dependencies
+        if: ${{ inputs.enable_rag }}
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
       - name: Run HW6 unit tests
         run: python -m unittest scripts/hw6/test_agentic_workflow.py
       - name: Run agentic workflow
