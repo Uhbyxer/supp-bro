@@ -131,6 +131,40 @@ Streamlit перенесений на HW7 і тепер показує не ті
 python -m streamlit run scripts/hw7/streamlit_app.py
 ```
 
+### Streamlit screenshots
+
+Нижче показаний сценарій для питання `Is Debezium issue #3 still open and who worked on it?`. Це корисний приклад саме для HW7, бо видно не тільки відповідь, а й фактичний шлях у LangGraph: `classify_request -> run_issue_rag -> read_github_issue -> build_answer`.
+
+#### Chat, route і executed nodes
+
+На головному екрані видно відповідь бота, route `issue_investigation`, `fallback_used=True` і список виконаних LangGraph nodes. Тут добре видно, що RAG fallback не зупинив workflow: після нього агент перейшов до GitHub tool.
+
+![HW7 Streamlit chat with route and executed nodes](assets/streamlit-chat-nodes.png)
+
+#### Plan trace
+
+Plan trace показує ті самі кроки в більш user-friendly форматі: `classify_intent`, `retrieve_issues`, `read_github_issue`, `compose_answer`. Крок `retrieve_issues` має `model_fallback`, але `read_github_issue` і `compose_answer` завершились успішно.
+
+![HW7 Streamlit plan trace](assets/streamlit-plan-trace.png)
+
+#### RAG observation
+
+RAG tab пояснює причину fallback: локальний retrieval/model не мав достатньо grounded context, щоб відповісти на питання про live status issue. Для такого запиту це очікувано, бо актуальні metadata краще брати через GitHub API.
+
+![HW7 Streamlit RAG fallback](assets/streamlit-rag-fallback.png)
+
+#### External tool call
+
+Tools tab показує HW5 tool request `get_github_issue_context` для `debezium/dbz#3` і успішний tool observation. Саме цей node компенсує обмеження локального RAG.
+
+![HW7 Streamlit GitHub tool call](assets/streamlit-tool-call.png)
+
+#### Final state
+
+State JSON показує весь LangGraph state після виконання: початкове питання, route, plan statuses, RAG/tool observations, `executed_nodes`, `fallback_used` і фінальну відповідь.
+
+![HW7 Streamlit final state JSON](assets/streamlit-state-json.png)
+
 ## Custom HW6 vs LangGraph HW7
 
 | Аспект | Custom HW6 | LangGraph HW7 |
