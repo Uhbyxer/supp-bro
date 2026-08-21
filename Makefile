@@ -3,7 +3,7 @@ VENV ?= .venv
 PIP := $(VENV)/bin/pip
 PYTHON_BIN := $(VENV)/bin/python
 
-.PHONY: setup download-issues build-index semantic-search build-mongo-index mongo-semantic-search build-pinecone-index pinecone-semantic-search pinecone-retrieval-evaluation pinecone-hybrid-evaluation rag-answer hw5-external-tool hw6-agentic-workflow hw6-streamlit
+.PHONY: setup download-issues build-index semantic-search build-mongo-index mongo-semantic-search build-pinecone-index pinecone-semantic-search pinecone-retrieval-evaluation pinecone-hybrid-evaluation rag-answer hw5-external-tool hw6-agentic-workflow hw6-streamlit hw7-langgraph-workflow hw7-streamlit
 setup:
 	$(PYTHON) -m venv $(VENV)
 	$(PYTHON_BIN) -m pip install --upgrade pip
@@ -48,3 +48,9 @@ hw6-agentic-workflow:
 
 hw6-streamlit:
 	$(PYTHON_BIN) -m streamlit run scripts/hw6/streamlit_app.py
+
+hw7-langgraph-workflow:
+	$(PYTHON_BIN) scripts/hw7/langgraph_flow.py "$(QUESTION)"
+
+hw7-streamlit:
+	$(PYTHON_BIN) -m streamlit run scripts/hw7/streamlit_app.py
