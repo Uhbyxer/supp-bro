@@ -105,6 +105,22 @@ Demo запускає ті самі 5 питань, які використов�
 | 4 | Community search | `Has anyone seen Debezium unable to acquire buffer lock on Stack Overflow?` | `community_lookup` |
 | 5 | Нечітке питання | `Help with Debezium` | `clarification` |
 
+## Результат прогону
+
+Останній demo run: [GitHub Actions run 32473072564](https://github.com/Uhbyxer/supp-bro/actions/runs/32473072564). Artifact із JSON/Markdown trace: [hw7-langgraph-workflow-result](https://github.com/Uhbyxer/supp-bro/actions/runs/32473072564/artifacts/9443343774).
+
+Run пройшов успішно: job `langgraph-workflow` завершився зі статусом `success`, unit tests пройшли, LangGraph demo відпрацював усі 5 питань і завантажив artifact з фінальним state.
+
+| # | Query | Route | Executed nodes | RAG status | Tool | Що відповів бот | Очікувано? | Коментар |
+|---:|---|---|---|---|---|---|---|---|
+| 1 | `Can I get exactly once delivery?` | `docs_answer` | `classify_request -> run_docs_rag -> build_answer` | `grounded_answer` | `none` | Відповів, що exactly-once delivery можливий через Debezium як source connector у Kafka Connect, але Debezium не має власного internal deduplication layer; додав citations. | Так | Це чисте документаційне питання, тому правильний шлях: тільки RAG по docs без external tool. |
+| 2 | `Backpressure error says unable to acquire buffer lock and queue is full` | `issue_investigation` | `classify_request -> run_issue_rag -> read_github_issue -> build_answer` | `grounded_answer` | `get_github_issue_context` | Спочатку дав local RAG пояснення про заповнену buffer queue у MongoDB connector, потім додав live GitHub status для `debezium/dbz#3`: issue open, labels `component/mongodb-connector`, `type/bug`, assignees відсутні. | Так | Це найкращий сценарій для agentic workflow: RAG дає локальне пояснення, а GitHub tool додає актуальний стан issue. |
+| 3 | `Is Debezium issue #3 still open and who worked on it?` | `issue_investigation` | `classify_request -> run_issue_rag -> read_github_issue -> build_answer` | `model_fallback` | `get_github_issue_context` | RAG не дав grounded answer, але GitHub tool повернув live status issue #3: open, title, labels, comments, updated date і URL. | Так | Для питання про поточний статус issue fallback у RAG очікуваний: локальна база знань не є джерелом live metadata, тому відповідь правильно будується через GitHub tool. |
+| 4 | `Has anyone seen Debezium unable to acquire buffer lock on Stack Overflow?` | `community_lookup` | `classify_request -> run_community_rag -> search_community -> build_answer` | `model_fallback` | `search_stackoverflow_questions` | Відповів, що matching Stack Overflow questions не знайдено, але local RAG observation доступний у trace. | Так | Користувач явно просив community lookup, тому route правильний. Нуль результатів у Stack Overflow тут не помилка, а валідний результат external search. |
+| 5 | `Help with Debezium` | `clarification` | `classify_request -> ask_clarification -> build_answer` | `not_called` | `ask_clarifying_question` | Попросив уточнити connector, exact error message і чи шукати в local docs/issues або external community sources. | Так | Нечітке питання не запускає випадковий retrieval. LangGraph route веде до clarification node, що є правильним і безпечним fallback для подальшого розвитку агента. |
+
+Головний висновок: LangGraph не змінив якість відповідей сам по собі, але зробив workflow прозорішим. У trace тепер явно видно, які nodes були виконані для кожного route, а conditional edge після `classify_request` показує, чому питання пішло в docs, issue investigation, community lookup або clarification.
+
 ## Streamlit
 
 Streamlit перенесений на HW7 і тепер показує не тільки plan/RAG/tools/state, а й фактичний список `executed_nodes`. Це зручно для демонстрації framework workflow: видно, якими LangGraph nodes пройшло конкретне питання.
