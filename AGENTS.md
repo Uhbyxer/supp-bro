@@ -1,31 +1,36 @@
-# Repository instructions
+<!-- bmad:context -->
+<!-- Verified 2026-08-23 against 126e0837fe022ca837c89555f1ceafae11a0a592. Managed by bmad-project-context; edits inside this block are replaced on refresh. Keep anything you want preserved outside the markers. -->
 
-## GitHub workflow
+## SuppBro
 
-- Prefer the connected GitHub app or GitHub API for all GitHub operations.
-- Do not require or use the `gh` CLI unless the user explicitly requests it.
-- Use the GitHub app or API to create branches, commits, pull requests, comments, and to read pull request metadata.
-- If the GitHub app or API is unavailable, explain the blocker instead of automatically falling back to `gh`.
+SuppBro is a Python support assistant for Debezium documentation questions and technical issue investigation. The repo currently contains homework POCs in `scripts/hw*`; the product direction is to refactor useful behavior into a cleaner package-oriented codebase. Use BMAD in lightweight brownfield quick-dev mode: preserve working homework behavior, write only durable docs needed for context, then implement the next small slice.
 
-## Development direction
+## Policy
 
-- Treat `scripts/hw*` folders as proof-of-concept work and learning history.
-- Do not keep growing homework scripts into the final product unless the user explicitly asks to change a specific homework.
-- New product code should move into a package-oriented structure, with reusable modules under `src/supp_bro/` when the project structure is introduced.
-- It is fine to copy useful logic from HW4-HW7, but refactor it into clear package boundaries instead of importing across homework folders.
-- Keep the first production structure simple: retrieval, tools, workflow, domain state, config, and UI should be separate modules.
+- Prefer the connected GitHub app or GitHub API for GitHub operations; do not require or use `gh` unless the user explicitly asks.
+- Never store or print `MONGODB_URI`; local development uses `.env` and CI uses secrets.
 
-## BMAD / quick-dev mode
+## Where things are
 
-- Use BMAD as a lightweight brownfield planning aid, not as a heavy ceremony requirement.
-- Prefer quick-dev style: clarify the goal, write only the docs needed for durable context, then implement the next small slice.
-- Store lasting project decisions in docs such as `docs/bmad/project-brief.md` and `docs/bmad/architecture.md`.
-- Use `AGENTS.md` for repo-wide coding rules and agent behavior, not for long product specs.
-- For each BMAD/dev story, start from the existing repo behavior and preserve working HW behavior unless a change is intentional.
+- Current POCs live in `scripts/hw4` through `scripts/hw7`: RAG answering, external tools, custom workflow, and LangGraph workflow.
+- New product code should go under `src/supp_bro/` when the package structure is introduced, not by growing homework scripts.
+- Durable BMAD decisions belong in `docs/bmad/project-brief.md` and `docs/bmad/architecture.md`; implementation artifacts belong in `_bmad-output/implementation-artifacts/`.
 
-## Testing expectations
+## Running and verifying
 
-- Default to fast unit tests for critical behavior.
-- Prioritize tests for routing decisions, tool input/output validation, workflow state transitions, and fallback behavior.
-- Avoid broad integration, RAG, or external API tests in the normal quick-dev loop unless the current task changes that contract.
-- Prefer commands like `pytest tests/unit -q` once unit tests are split out.
+- Use `make setup` before running project commands; Makefile targets use `.venv/bin/python`.
+- In the Codex sandbox, run BMAD `uv` commands with `UV_CACHE_DIR=/private/tmp/uv-cache` because the default `~/.cache/uv` path is not writable.
+- Prefer focused unit tests for the touched homework or package area; broad RAG, external API, or integration tests are not the default quick-dev loop.
+
+## Conventions that differ from defaults
+
+- Treat `scripts/hw*` folders as proof-of-concept learning history; copy useful logic into package boundaries instead of importing across homework folders.
+- Keep the first production structure simple: retrieval, tools, workflow, domain state, config, and UI should stay as separate modules.
+- For BMAD build work, start from existing repo behavior and preserve working HW behavior unless the change intentionally replaces it.
+
+## Known pitfalls
+
+- `bmad-build` halts without a concrete intent or spec path; invoke it with the specific small slice to build.
+- The repo can be opened in detached `HEAD`; create or switch to a task branch before implementation work that should be committed.
+
+<!-- /bmad:context -->
