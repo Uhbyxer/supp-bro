@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from typing import Any
 
-from supp_bro.config import LocalSettings, ProviderTokens
+from supp_bro.config import STACKOVERFLOW_SEARCH_CAPABILITY, LocalSettings, ProviderTokens
 from supp_bro.domain.contracts import ToolRequest
 from supp_bro.tools.stackoverflow import UNCONFIRMED_SEARCH_ERROR, search_stackoverflow_questions
 
@@ -74,38 +74,51 @@ class StackOverflowAdapterTest(unittest.TestCase):
         self.assertFalse(called)
 
     def test_unavailable_does_not_call_http(self) -> None:
-        called = False
+        for settings in [
+            LocalSettings(),
+            LocalSettings(
+                provider_tokens=ProviderTokens(stackoverflow_token="so_secret"),
+                capability_enabled={STACKOVERFLOW_SEARCH_CAPABILITY: False},
+            ),
+        ]:
+            with self.subTest(settings=settings):
+                called = False
 
-        def http_get_json(url: str, headers: dict[str, str] | None = None, timeout: int = 20) -> Any:
-            nonlocal called
-            called = True
-            return {}
+                def http_get_json(url: str, headers: dict[str, str] | None = None, timeout: int = 20) -> Any:
+                    nonlocal called
+                    called = True
+                    return {}
 
-        observation = search_stackoverflow_questions(
-            stackoverflow_request(),
-            settings=LocalSettings(),
-            http_get_json=http_get_json,
-        )
+                observation = search_stackoverflow_questions(
+                    stackoverflow_request(),
+                    settings=settings,
+                    http_get_json=http_get_json,
+                )
 
-        self.assertFalse(observation.success)
-        self.assertEqual(observation.status, "unavailable")
-        self.assertFalse(called)
+                self.assertFalse(observation.success)
+                self.assertEqual(observation.status, "unavailable")
+                self.assertFalse(called)
 
     def test_timeout_and_provider_failure_are_typed_and_redacted(self) -> None:
-        for exc, expected_status in [(TimeoutError("so_secret timed out"), "timeout"), (RuntimeError("so_secret failed"), "failed")]:
+        encoded_token = "so%2Fsecret"
+        for exc, expected_status in [
+            (TimeoutError("so/secret timed out"), "timeout"),
+            (RuntimeError(f"{encoded_token} failed"), "failed"),
+        ]:
             with self.subTest(expected_status=expected_status):
                 def http_get_json(url: str, headers: dict[str, str] | None = None, timeout: int = 20) -> Any:
                     raise exc
 
                 observation = search_stackoverflow_questions(
                     stackoverflow_request(),
-                    settings=LocalSettings(provider_tokens=ProviderTokens(stackoverflow_token="so_secret")),
+                    settings=LocalSettings(provider_tokens=ProviderTokens(stackoverflow_token="so/secret")),
                     http_get_json=http_get_json,
                 )
 
                 self.assertFalse(observation.success)
                 self.assertEqual(observation.status, expected_status)
-                self.assertNotIn("so_secret", observation.error or "")
+                self.assertNotIn("so/secret", observation.error or "")
+                self.assertNotIn(encoded_token, observation.error or "")
 
     def test_malformed_payload_is_failed_observation(self) -> None:
         observation = search_stackoverflow_questions(
@@ -116,6 +129,18 @@ class StackOverflowAdapterTest(unittest.TestCase):
 
         self.assertFalse(observation.success)
         self.assertEqual(observation.status, "failed")
+
+    def test_non_string_result_title_does_not_raise(self) -> None:
+        observation = search_stackoverflow_questions(
+            stackoverflow_request(),
+            settings=LocalSettings(provider_tokens=ProviderTokens(stackoverflow_token="so_secret")),
+            http_get_json=lambda url, headers=None, timeout=20: {
+                "items": [{"title": 123, "link": "https://stackoverflow.com/q/1"}]
+            },
+        )
+
+        self.assertTrue(observation.success)
+        self.assertEqual(observation.data["results"][0]["title"], "")
 
 
 if __name__ == "__main__":

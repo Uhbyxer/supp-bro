@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import urllib.parse
 from typing import Any, Callable
 
 from supp_bro.config import GITHUB_ISSUES_CAPABILITY, LocalSettings
@@ -33,7 +34,9 @@ def fetch_github_issue_context(
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     repo = request.payload["repo"]
     issue_number = request.payload["issue_number"]
-    issue_url = f"{GITHUB_API_ROOT}/repos/{repo}/issues/{issue_number}"
+    owner, name = repo.split("/", maxsplit=1)
+    quoted_repo = f"{urllib.parse.quote(owner, safe='')}/{urllib.parse.quote(name, safe='')}"
+    issue_url = f"{GITHUB_API_ROOT}/repos/{quoted_repo}/issues/{issue_number}"
     comments_url = f"{issue_url}/comments?per_page=30"
 
     try:
@@ -46,20 +49,29 @@ def fetch_github_issue_context(
 
     if not isinstance(issue, dict):
         return _failed_observation("failed", "GitHub issue response was malformed.")
-    comments = comments_payload if isinstance(comments_payload, list) else []
+    if not isinstance(comments_payload, list):
+        return _failed_observation("failed", "GitHub comments response was malformed.")
 
+    issue_user = issue.get("user") if isinstance(issue.get("user"), dict) else {}
+    labels = issue.get("labels") if isinstance(issue.get("labels"), list) else []
+    assignees = issue.get("assignees") if isinstance(issue.get("assignees"), list) else []
+    comment_users = [
+        comment.get("user")
+        for comment in comments_payload
+        if isinstance(comment, dict) and isinstance(comment.get("user"), dict)
+    ]
     participants = sorted(
         {
-            *(comment.get("user", {}).get("login") for comment in comments if isinstance(comment, dict) and comment.get("user")),
-            issue.get("user", {}).get("login"),
-            *(assignee.get("login") for assignee in issue.get("assignees", []) if isinstance(assignee, dict)),
+            *(user.get("login") for user in comment_users),
+            issue_user.get("login"),
+            *(assignee.get("login") for assignee in assignees if isinstance(assignee, dict)),
         }
         - {None}
     )
     recent_comment_authors = [
-        comment.get("user", {}).get("login")
-        for comment in comments[-5:]
-        if isinstance(comment, dict) and comment.get("user", {}).get("login")
+        user.get("login")
+        for user in comment_users[-5:]
+        if user.get("login")
     ]
 
     return ToolObservation(
@@ -73,11 +85,11 @@ def fetch_github_issue_context(
             "issue_number": issue_number,
             "title": issue.get("title"),
             "state": issue.get("state"),
-            "labels": [label.get("name") for label in issue.get("labels", []) if isinstance(label, dict)],
+            "labels": [label.get("name") for label in labels if isinstance(label, dict)],
             "assignees": [
-                assignee.get("login") for assignee in issue.get("assignees", []) if isinstance(assignee, dict)
+                assignee.get("login") for assignee in assignees if isinstance(assignee, dict)
             ],
-            "created_by": issue.get("user", {}).get("login"),
+            "created_by": issue_user.get("login"),
             "created_at": issue.get("created_at"),
             "updated_at": issue.get("updated_at"),
             "closed_at": issue.get("closed_at"),

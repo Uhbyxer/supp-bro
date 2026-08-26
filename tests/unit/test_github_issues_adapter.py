@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from typing import Any
 
-from supp_bro.config import LocalSettings, ProviderTokens
+from supp_bro.config import GITHUB_ISSUES_CAPABILITY, LocalSettings, ProviderTokens
 from supp_bro.domain.contracts import ToolRequest
 from supp_bro.tools.github_issues import fetch_github_issue_context
 
@@ -61,22 +61,30 @@ class GithubIssuesAdapterTest(unittest.TestCase):
         self.assertEqual(calls[0][1], {"Authorization": "Bearer ghp_secret"})
 
     def test_unavailable_does_not_call_http(self) -> None:
-        called = False
+        for settings in [
+            LocalSettings(),
+            LocalSettings(
+                provider_tokens=ProviderTokens(github_token="ghp_secret"),
+                capability_enabled={GITHUB_ISSUES_CAPABILITY: False},
+            ),
+        ]:
+            with self.subTest(settings=settings):
+                called = False
 
-        def http_get_json(url: str, headers: dict[str, str] | None = None, timeout: int = 20) -> Any:
-            nonlocal called
-            called = True
-            return {}
+                def http_get_json(url: str, headers: dict[str, str] | None = None, timeout: int = 20) -> Any:
+                    nonlocal called
+                    called = True
+                    return {}
 
-        observation = fetch_github_issue_context(
-            github_request(),
-            settings=LocalSettings(),
-            http_get_json=http_get_json,
-        )
+                observation = fetch_github_issue_context(
+                    github_request(),
+                    settings=settings,
+                    http_get_json=http_get_json,
+                )
 
-        self.assertFalse(observation.success)
-        self.assertEqual(observation.status, "unavailable")
-        self.assertFalse(called)
+                self.assertFalse(observation.success)
+                self.assertEqual(observation.status, "unavailable")
+                self.assertFalse(called)
 
     def test_timeout_and_provider_failure_are_typed_and_redacted(self) -> None:
         for exc, expected_status in [(TimeoutError("ghp_secret timed out"), "timeout"), (RuntimeError("ghp_secret failed"), "failed")]:
@@ -103,6 +111,40 @@ class GithubIssuesAdapterTest(unittest.TestCase):
 
         self.assertFalse(observation.success)
         self.assertEqual(observation.status, "failed")
+
+    def test_malformed_comments_payload_is_failed_observation(self) -> None:
+        def http_get_json(url: str, headers: dict[str, str] | None = None, timeout: int = 20) -> Any:
+            if url.endswith("/comments?per_page=30"):
+                return {"message": "bad comments"}
+            return {"title": "Issue", "user": {"login": "reporter"}, "assignees": [], "labels": []}
+
+        observation = fetch_github_issue_context(
+            github_request(),
+            settings=LocalSettings(provider_tokens=ProviderTokens(github_token="ghp_secret")),
+            http_get_json=http_get_json,
+        )
+
+        self.assertFalse(observation.success)
+        self.assertEqual(observation.status, "failed")
+        self.assertEqual(observation.error, "GitHub comments response was malformed.")
+
+    def test_malformed_nested_issue_fields_do_not_raise(self) -> None:
+        def http_get_json(url: str, headers: dict[str, str] | None = None, timeout: int = 20) -> Any:
+            if url.endswith("/comments?per_page=30"):
+                return [{"user": "not a dict"}]
+            return {"title": "Issue", "user": None, "assignees": None, "labels": None}
+
+        observation = fetch_github_issue_context(
+            github_request(),
+            settings=LocalSettings(provider_tokens=ProviderTokens(github_token="ghp_secret")),
+            http_get_json=http_get_json,
+        )
+
+        self.assertTrue(observation.success)
+        self.assertEqual(observation.data["participants"], [])
+        self.assertEqual(observation.data["recent_comment_authors"], [])
+        self.assertEqual(observation.data["labels"], [])
+        self.assertEqual(observation.data["assignees"], [])
 
 
 if __name__ == "__main__":

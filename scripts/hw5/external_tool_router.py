@@ -140,7 +140,7 @@ def get_github_issue_context(repo: str, issue_number: int, github_token: str | N
         tool_type="read",
         payload={"repo": repo, "issue_number": issue_number},
     )
-    settings = LocalSettings(provider_tokens=ProviderTokens(github_token=github_token))
+    settings = _settings_from_tokens(github_token=github_token)
     return _to_hw5_observation(
         fetch_product_github_issue_context(request, settings=settings, http_get_json=http_get_json)
     )
@@ -158,7 +158,7 @@ def search_stackoverflow_questions(
         payload={"query": query, "tag": tag, "max_results": max_results},
         confirmed=True,
     )
-    settings = LocalSettings(provider_tokens=ProviderTokens(stackoverflow_token=stackoverflow_token))
+    settings = _settings_from_tokens(stackoverflow_token=stackoverflow_token)
     return _to_hw5_observation(
         search_product_stackoverflow_questions(request, settings=settings, http_get_json=http_get_json)
     )
@@ -189,7 +189,7 @@ def execute_tool_request(
         return ToolObservation(tool_name=request.tool_name, success=False, data={}, error=validation_error)
 
     if request.tool_name == "get_github_issue_context":
-        settings = LocalSettings(provider_tokens=ProviderTokens(github_token=github_token))
+        settings = _settings_from_tokens(github_token=github_token, stackoverflow_token=stackoverflow_token)
         return _to_hw5_observation(
             fetch_product_github_issue_context(request, settings=settings, http_get_json=http_get_json)
         )
@@ -201,7 +201,7 @@ def execute_tool_request(
                 data={},
                 error="External community search requires confirmation.",
             )
-        settings = LocalSettings(provider_tokens=ProviderTokens(stackoverflow_token=stackoverflow_token))
+        settings = _settings_from_tokens(github_token=github_token, stackoverflow_token=stackoverflow_token)
         return _to_hw5_observation(
             search_product_stackoverflow_questions(request, settings=settings, http_get_json=http_get_json)
         )
@@ -216,6 +216,27 @@ def _to_hw5_observation(observation: ProductToolObservation) -> ToolObservation:
         success=observation.success,
         data=observation.data,
         error=observation.error,
+    )
+
+
+def _settings_from_tokens(
+    github_token: str | None = None,
+    stackoverflow_token: str | None = None,
+) -> LocalSettings:
+    settings = build_local_settings()
+    return LocalSettings(
+        provider_tokens=ProviderTokens(
+            github_token=github_token if github_token is not None else settings.provider_tokens.github_token,
+            stackoverflow_token=(
+                stackoverflow_token
+                if stackoverflow_token is not None
+                else settings.provider_tokens.stackoverflow_token
+            ),
+            openai_api_key=settings.provider_tokens.openai_api_key,
+            pinecone_api_key=settings.provider_tokens.pinecone_api_key,
+            mongodb_uri=settings.provider_tokens.mongodb_uri,
+        ),
+        capability_enabled=settings.capability_enabled,
     )
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from supp_bro.domain.contracts import ToolRequest
 from supp_bro.domain.support_intent import classify_support_intent
@@ -35,6 +36,31 @@ class Hw5CompatibilityWrapperTest(unittest.TestCase):
         self.assertEqual(request.tool_type, "read")
         self.assertEqual(request.payload, {})
         self.assertFalse(request.confirmed)
+
+    def test_execute_tool_request_uses_environment_stackoverflow_token(self) -> None:
+        calls: list[str] = []
+
+        def http_get_json(url: str, headers: dict[str, str] | None = None, timeout: int = 20) -> dict[str, object]:
+            calls.append(url)
+            return {"items": []}
+
+        original_http_get_json = external_tool_router.http_get_json
+        try:
+            external_tool_router.http_get_json = http_get_json
+            request = ToolRequest(
+                tool_name="search_stackoverflow_questions",
+                tool_type="read",
+                payload={"query": "Debezium buffer lock", "tag": "debezium"},
+                confirmed=True,
+            )
+
+            with patch.dict("os.environ", {"STACKOVERFLOW_TOKEN": "so_secret"}):
+                observation = external_tool_router.execute_tool_request(request)
+        finally:
+            external_tool_router.http_get_json = original_http_get_json
+
+        self.assertTrue(observation.success)
+        self.assertIn("key=so_secret", calls[0])
 
 
 if __name__ == "__main__":

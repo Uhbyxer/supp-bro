@@ -77,6 +77,8 @@ context:
 
 ## Spec Change Log
 
+- Review patch: hardened adapter normalization for malformed GitHub comments/nested fields and non-string Stack Overflow titles; preserved HW5 wrapper token fallback through `build_local_settings()` so HW6/HW7 callers can still use environment-backed Stack Overflow tokens; added regression tests for these cases.
+
 ## Design Notes
 
 Keep HTTP as an injectable callable instead of creating a client class unless the implementation becomes awkward. A small function boundary is enough for this slice and avoids new dependencies:
@@ -101,13 +103,13 @@ The HW5 wrapper may convert product `ToolObservation(status=..., source=..., raw
 **Adapter Boundary**
 
 - Start with the GitHub product adapter boundary and capability gate.
-  [`github_issues.py:17`](../../src/supp_bro/tools/github_issues.py#L17)
+  [`github_issues.py:18`](../../src/supp_bro/tools/github_issues.py#L18)
 
 - Review GitHub provider calls, typed failures, and token redaction.
-  [`github_issues.py:39`](../../src/supp_bro/tools/github_issues.py#L39)
+  [`github_issues.py:42`](../../src/supp_bro/tools/github_issues.py#L42)
 
 - Check HW5-equivalent issue normalization before workflow crossing.
-  [`github_issues.py:65`](../../src/supp_bro/tools/github_issues.py#L65)
+  [`github_issues.py:55`](../../src/supp_bro/tools/github_issues.py#L55)
 
 - Review Stack Overflow confirmation, capability gate, and query shaping.
   [`stackoverflow.py:20`](../../src/supp_bro/tools/stackoverflow.py#L20)
@@ -126,6 +128,9 @@ The HW5 wrapper may convert product `ToolObservation(status=..., source=..., raw
 - Check conversion from product observations to HW5 dataclass output.
   [`external_tool_router.py:213`](../../scripts/hw5/external_tool_router.py#L213)
 
+- Check HW5 token fallback keeps environment-backed downstream callers working.
+  [`external_tool_router.py:222`](../../scripts/hw5/external_tool_router.py#L222)
+
 - Verify stable product exports for workflow imports.
   [`__init__.py:14`](../../src/supp_bro/tools/__init__.py#L14)
 
@@ -136,3 +141,6 @@ The HW5 wrapper may convert product `ToolObservation(status=..., source=..., raw
 
 - Stack Overflow tests cover confirmation, normalization, redaction, and failures.
   [`test_stackoverflow_adapter.py:20`](../../tests/unit/test_stackoverflow_adapter.py#L20)
+
+- HW5 wrapper tests cover old imports and environment token fallback.
+  [`test_hw5_compatibility_wrapper.py:18`](../../tests/unit/test_hw5_compatibility_wrapper.py#L18)

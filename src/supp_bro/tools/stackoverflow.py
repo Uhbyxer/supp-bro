@@ -51,7 +51,8 @@ def search_stackoverflow_questions(
     }
     if token:
         params["key"] = token
-    url = f"{STACKEXCHANGE_SEARCH_URL}?{urllib.parse.urlencode(params)}"
+    encoded_params = urllib.parse.urlencode(params)
+    url = f"{STACKEXCHANGE_SEARCH_URL}?{encoded_params}"
     raw_reference = f"{STACKEXCHANGE_SEARCH_URL}?{urllib.parse.urlencode({k: v for k, v in params.items() if k != 'key'})}"
 
     try:
@@ -66,7 +67,7 @@ def search_stackoverflow_questions(
 
     results = [
         {
-            "title": html.unescape(item.get("title") or ""),
+            "title": html.unescape(item["title"] if isinstance(item.get("title"), str) else ""),
             "score": item.get("score"),
             "answer_count": item.get("answer_count"),
             "is_answered": item.get("is_answered"),
@@ -107,4 +108,5 @@ def _clean_error(exc: Exception, token: str | None) -> str:
     message = str(exc) or exc.__class__.__name__
     if token:
         message = message.replace(token, "[redacted]")
+        message = message.replace(urllib.parse.quote_plus(token), "[redacted]")
     return message
