@@ -15,31 +15,62 @@ import argparse
 import html
 import json
 import os
-import re
 import sys
 import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
-Route = Literal[
-    "docs_question",
-    "known_issue_question",
-    "report_new_issue",
-    "community_troubleshooting",
-    "clarification",
-]
-ToolType = Literal["read"]
-ToolName = Literal[
-    "get_github_issue_context",
-    "search_stackoverflow_questions",
+SRC_ROOT = Path(__file__).resolve().parents[2] / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from supp_bro.domain.contracts import ToolName, ToolRequest, ToolType
+from supp_bro.domain.routes import Hw5Route as Route
+from supp_bro.domain.support_intent import classify_support_intent, extract_issue_number
+from supp_bro.tools import (
+    DEFAULT_GITHUB_REPO,
+    DEFAULT_STACKOVERFLOW_TAG,
+    build_tool_request,
+    normalize_stackoverflow_query,
+    validate_issue_number,
+    validate_repo,
+    validate_search_query,
+    validate_tag,
+    validate_tool_request,
+)
+
+__all__ = [
+    "AgentState",
+    "DEFAULT_GITHUB_REPO",
+    "DEFAULT_STACKOVERFLOW_TAG",
+    "DEMO_CASES",
+    "Route",
+    "ToolName",
+    "ToolObservation",
+    "ToolRequest",
+    "ToolType",
     "ask_clarifying_question",
-    "none",
+    "build_final_answer",
+    "build_tool_request",
+    "classify_support_intent",
+    "execute_tool_request",
+    "extract_issue_number",
+    "get_github_issue_context",
+    "http_get_json",
+    "normalize_stackoverflow_query",
+    "render_demo_markdown",
+    "render_markdown",
+    "run_agent",
+    "search_stackoverflow_questions",
+    "validate_issue_number",
+    "validate_repo",
+    "validate_search_query",
+    "validate_tag",
+    "validate_tool_request",
 ]
 
-DEFAULT_GITHUB_REPO = "debezium/dbz"
-DEFAULT_STACKOVERFLOW_TAG = "debezium"
 USER_AGENT = "supp-bro-hw5-external-tool-demo"
 DEMO_CASES = [
     {
@@ -76,14 +107,6 @@ DEMO_CASES = [
 
 
 @dataclass
-class ToolRequest:
-    tool_name: ToolName
-    tool_type: ToolType
-    payload: dict[str, Any]
-    confirmed: bool = False
-
-
-@dataclass
 class ToolObservation:
     tool_name: ToolName
     success: bool
@@ -109,81 +132,6 @@ def http_get_json(url: str, headers: dict[str, str] | None = None, timeout: int 
     request = urllib.request.Request(url, headers=request_headers)
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
-
-
-def classify_support_intent(question: str) -> tuple[Route, str]:
-    text = question.lower()
-
-    if any(token in text for token in ["report issue", "create issue", "file issue", "submit bug"]):
-        return "report_new_issue", "The user wants to report a new issue or bug."
-    if any(token in text for token in ["stackoverflow", "stack overflow", "anyone seen", "workaround", "community"]):
-        return "community_troubleshooting", "The user asks for external community troubleshooting."
-    if re.search(r"(issue|bug)\s*#?\d+", text) or any(
-        token in text for token in ["still open", "closed", "assignee", "labels", "contributors"]
-    ):
-        return "known_issue_question", "The user asks about current GitHub issue metadata."
-    if any(token in text for token in ["error", "exception", "unable to", "buffer lock", "queue is full", "backpressure"]):
-        return "known_issue_question", "The user asks about a concrete error that may map to a known issue."
-    if len(text.split()) < 5 or any(token in text for token in ["something wrong", "help", "problem"]):
-        return "clarification", "The query is too vague to choose a reliable tool."
-    return "docs_question", "The user asks a documentation-style question."
-
-
-def extract_issue_number(question: str) -> int | None:
-    match = re.search(r"(?:issue|bug)\s*#?\s*(\d+)", question, re.IGNORECASE)
-    if match:
-        return int(match.group(1))
-    return None
-
-
-def validate_repo(repo: Any) -> str | None:
-    if not isinstance(repo, str) or not repo.strip():
-        return "repo is required and must be a non-empty string."
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
-        return "repo must use owner/name format."
-    return None
-
-
-def validate_issue_number(issue_number: Any) -> str | None:
-    if not isinstance(issue_number, int):
-        return "issue_number must be an integer."
-    if issue_number < 1:
-        return "issue_number must be positive."
-    return None
-
-
-def validate_search_query(query: Any) -> str | None:
-    if not isinstance(query, str) or not query.strip():
-        return "query is required and must be a non-empty string."
-    if len(query) > 300:
-        return "query must be 300 characters or shorter."
-    return None
-
-
-def validate_tag(tag: Any) -> str | None:
-    if not isinstance(tag, str) or not tag.strip():
-        return "tag is required and must be a non-empty string."
-    if not re.fullmatch(r"[A-Za-z0-9_.#+-]+", tag):
-        return "tag contains unsupported characters."
-    return None
-
-
-def validate_tool_request(request: ToolRequest) -> str | None:
-    if request.tool_name == "get_github_issue_context":
-        repo_error = validate_repo(request.payload.get("repo"))
-        if repo_error:
-            return repo_error
-        return validate_issue_number(request.payload.get("issue_number"))
-    if request.tool_name == "search_stackoverflow_questions":
-        query_error = validate_search_query(request.payload.get("query"))
-        if query_error:
-            return query_error
-        return validate_tag(request.payload.get("tag"))
-    if request.tool_name == "ask_clarifying_question":
-        return validate_search_query(request.payload.get("query"))
-    if request.tool_name == "none":
-        return None
-    return "Unknown tool."
 
 
 def get_github_issue_context(repo: str, issue_number: int, github_token: str | None = None) -> ToolObservation:
@@ -268,22 +216,6 @@ def search_stackoverflow_questions(query: str, tag: str, max_results: int = 5) -
     )
 
 
-def normalize_stackoverflow_query(query: str) -> str:
-    normalized = query.lower()
-    for phrase in [
-        "has anyone seen",
-        "on stack overflow",
-        "stackoverflow",
-        "stack overflow",
-        "community",
-        "workaround",
-    ]:
-        normalized = normalized.replace(phrase, " ")
-    normalized = re.sub(r"[?!.:,;]", " ", normalized)
-    normalized = re.sub(r"\s+", " ", normalized).strip()
-    return normalized or query
-
-
 def ask_clarifying_question(query: str) -> ToolObservation:
     return ToolObservation(
         tool_name="ask_clarifying_question",
@@ -329,45 +261,6 @@ def execute_tool_request(request: ToolRequest, github_token: str | None = None) 
         return ToolObservation(tool_name="none", success=True, data={})
     except Exception as exc:  # pragma: no cover - network errors depend on external services
         return ToolObservation(tool_name=request.tool_name, success=False, data={}, error=str(exc))
-
-
-def build_tool_request(
-    route: Route,
-    question: str,
-    repo: str,
-    issue_number: int | None,
-    allow_external_community_search: bool,
-) -> ToolRequest:
-    if route == "known_issue_question":
-        selected_issue = issue_number or extract_issue_number(question)
-        if selected_issue is None:
-            if "buffer lock" in question.lower() or "queue is full" in question.lower():
-                selected_issue = 3
-            else:
-                return ToolRequest(
-                    tool_name="ask_clarifying_question",
-                    tool_type="read",
-                    payload={"query": question},
-                )
-        return ToolRequest(
-            tool_name="get_github_issue_context",
-            tool_type="read",
-            payload={"repo": repo, "issue_number": selected_issue},
-        )
-    if route == "community_troubleshooting":
-        return ToolRequest(
-            tool_name="search_stackoverflow_questions",
-            tool_type="read",
-            payload={"query": question, "tag": DEFAULT_STACKOVERFLOW_TAG, "max_results": 5},
-            confirmed=allow_external_community_search,
-        )
-    if route == "clarification" or route == "report_new_issue":
-        return ToolRequest(
-            tool_name="ask_clarifying_question",
-            tool_type="read",
-            payload={"query": question},
-        )
-    return ToolRequest(tool_name="none", tool_type="read", payload={})
 
 
 def build_final_answer(state: AgentState) -> str:
