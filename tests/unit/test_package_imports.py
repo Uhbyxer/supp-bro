@@ -6,8 +6,10 @@ import unittest
 class PackageImportsTest(unittest.TestCase):
     def test_package_imports(self) -> None:
         import supp_bro
+        import supp_bro.config
         import supp_bro.domain
 
+        self.assertTrue(callable(supp_bro.config.build_local_settings))
         self.assertIs(supp_bro.domain.WorkflowState, supp_bro.domain.WorkflowState)
 
     def test_top_level_all_exports_domain(self) -> None:
