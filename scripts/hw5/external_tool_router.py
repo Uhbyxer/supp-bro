@@ -12,11 +12,8 @@ Run examples:
 from __future__ import annotations
 
 import argparse
-import html
 import json
-import os
 import sys
-import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -26,14 +23,17 @@ SRC_ROOT = Path(__file__).resolve().parents[2] / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from supp_bro.domain.contracts import ToolName, ToolRequest, ToolType
+from supp_bro.config import LocalSettings, ProviderTokens, build_local_settings
+from supp_bro.domain.contracts import ToolName, ToolObservation as ProductToolObservation, ToolRequest, ToolType
 from supp_bro.domain.routes import Hw5Route as Route
 from supp_bro.domain.support_intent import classify_support_intent, extract_issue_number
 from supp_bro.tools import (
     DEFAULT_GITHUB_REPO,
     DEFAULT_STACKOVERFLOW_TAG,
     build_tool_request,
+    fetch_github_issue_context as fetch_product_github_issue_context,
     normalize_stackoverflow_query,
+    search_stackoverflow_questions as search_product_stackoverflow_questions,
     validate_issue_number,
     validate_repo,
     validate_search_query,
@@ -135,84 +135,32 @@ def http_get_json(url: str, headers: dict[str, str] | None = None, timeout: int 
 
 
 def get_github_issue_context(repo: str, issue_number: int, github_token: str | None = None) -> ToolObservation:
-    headers: dict[str, str] = {}
-    if github_token:
-        headers["Authorization"] = f"Bearer {github_token}"
-
-    issue_url = f"https://api.github.com/repos/{repo}/issues/{issue_number}"
-    comments_url = f"{issue_url}/comments?per_page=30"
-
-    issue = http_get_json(issue_url, headers=headers)
-    comments_payload = http_get_json(comments_url, headers=headers)
-    comments = comments_payload if isinstance(comments_payload, list) else []
-
-    participants = sorted(
-        {
-            *(comment.get("user", {}).get("login") for comment in comments if comment.get("user")),
-            issue.get("user", {}).get("login"),
-            *(assignee.get("login") for assignee in issue.get("assignees", [])),
-        }
-        - {None}
-    )
-    recent_comment_authors = [
-        comment.get("user", {}).get("login")
-        for comment in comments[-5:]
-        if comment.get("user", {}).get("login")
-    ]
-
-    return ToolObservation(
+    request = ToolRequest(
         tool_name="get_github_issue_context",
-        success=True,
-        data={
-            "repo": repo,
-            "issue_number": issue_number,
-            "title": issue.get("title"),
-            "state": issue.get("state"),
-            "labels": [label.get("name") for label in issue.get("labels", [])],
-            "assignees": [assignee.get("login") for assignee in issue.get("assignees", [])],
-            "created_by": issue.get("user", {}).get("login"),
-            "created_at": issue.get("created_at"),
-            "updated_at": issue.get("updated_at"),
-            "closed_at": issue.get("closed_at"),
-            "comment_count": issue.get("comments"),
-            "participants": participants,
-            "recent_comment_authors": recent_comment_authors,
-            "url": issue.get("html_url"),
-        },
+        tool_type="read",
+        payload={"repo": repo, "issue_number": issue_number},
+    )
+    settings = LocalSettings(provider_tokens=ProviderTokens(github_token=github_token))
+    return _to_hw5_observation(
+        fetch_product_github_issue_context(request, settings=settings, http_get_json=http_get_json)
     )
 
 
-def search_stackoverflow_questions(query: str, tag: str, max_results: int = 5) -> ToolObservation:
-    normalized_query = normalize_stackoverflow_query(query)
-    params = urllib.parse.urlencode(
-        {
-            "order": "desc",
-            "sort": "relevance",
-            "tagged": tag,
-            "q": normalized_query,
-            "site": "stackoverflow",
-            "pagesize": max_results,
-            "filter": "!nNPvSNdWme",
-        }
-    )
-    url = f"https://api.stackexchange.com/2.3/search/advanced?{params}"
-    payload = http_get_json(url)
-    items = payload.get("items", [])
-    results = [
-        {
-            "title": html.unescape(item.get("title") or ""),
-            "score": item.get("score"),
-            "answer_count": item.get("answer_count"),
-            "is_answered": item.get("is_answered"),
-            "last_activity_date": item.get("last_activity_date"),
-            "url": item.get("link"),
-        }
-        for item in items
-    ]
-    return ToolObservation(
+def search_stackoverflow_questions(
+    query: str,
+    tag: str,
+    max_results: int = 5,
+    stackoverflow_token: str | None = None,
+) -> ToolObservation:
+    request = ToolRequest(
         tool_name="search_stackoverflow_questions",
-        success=True,
-        data={"query": query, "normalized_query": normalized_query, "tag": tag, "count": len(results), "results": results},
+        tool_type="read",
+        payload={"query": query, "tag": tag, "max_results": max_results},
+        confirmed=True,
+    )
+    settings = LocalSettings(provider_tokens=ProviderTokens(stackoverflow_token=stackoverflow_token))
+    return _to_hw5_observation(
+        search_product_stackoverflow_questions(request, settings=settings, http_get_json=http_get_json)
     )
 
 
@@ -231,36 +179,44 @@ def ask_clarifying_question(query: str) -> ToolObservation:
     )
 
 
-def execute_tool_request(request: ToolRequest, github_token: str | None = None) -> ToolObservation:
+def execute_tool_request(
+    request: ToolRequest,
+    github_token: str | None = None,
+    stackoverflow_token: str | None = None,
+) -> ToolObservation:
     validation_error = validate_tool_request(request)
     if validation_error:
         return ToolObservation(tool_name=request.tool_name, success=False, data={}, error=validation_error)
 
-    try:
-        if request.tool_name == "get_github_issue_context":
-            return get_github_issue_context(
-                repo=request.payload["repo"],
-                issue_number=request.payload["issue_number"],
-                github_token=github_token,
+    if request.tool_name == "get_github_issue_context":
+        settings = LocalSettings(provider_tokens=ProviderTokens(github_token=github_token))
+        return _to_hw5_observation(
+            fetch_product_github_issue_context(request, settings=settings, http_get_json=http_get_json)
+        )
+    if request.tool_name == "search_stackoverflow_questions":
+        if not request.confirmed:
+            return ToolObservation(
+                tool_name=request.tool_name,
+                success=False,
+                data={},
+                error="External community search requires confirmation.",
             )
-        if request.tool_name == "search_stackoverflow_questions":
-            if not request.confirmed:
-                return ToolObservation(
-                    tool_name=request.tool_name,
-                    success=False,
-                    data={},
-                    error="External community search requires confirmation.",
-                )
-            return search_stackoverflow_questions(
-                query=request.payload["query"],
-                tag=request.payload["tag"],
-                max_results=request.payload.get("max_results", 5),
-            )
-        if request.tool_name == "ask_clarifying_question":
-            return ask_clarifying_question(query=request.payload["query"])
-        return ToolObservation(tool_name="none", success=True, data={})
-    except Exception as exc:  # pragma: no cover - network errors depend on external services
-        return ToolObservation(tool_name=request.tool_name, success=False, data={}, error=str(exc))
+        settings = LocalSettings(provider_tokens=ProviderTokens(stackoverflow_token=stackoverflow_token))
+        return _to_hw5_observation(
+            search_product_stackoverflow_questions(request, settings=settings, http_get_json=http_get_json)
+        )
+    if request.tool_name == "ask_clarifying_question":
+        return ask_clarifying_question(query=request.payload["query"])
+    return ToolObservation(tool_name="none", success=True, data={})
+
+
+def _to_hw5_observation(observation: ProductToolObservation) -> ToolObservation:
+    return ToolObservation(
+        tool_name=observation.tool_name,
+        success=observation.success,
+        data=observation.data,
+        error=observation.error,
+    )
 
 
 def build_final_answer(state: AgentState) -> str:
@@ -302,6 +258,7 @@ def run_agent(
     issue_number: int | None = None,
     allow_external_community_search: bool = False,
     github_token: str | None = None,
+    stackoverflow_token: str | None = None,
 ) -> AgentState:
     route, route_reason = classify_support_intent(question)
     tool_request = build_tool_request(
@@ -318,7 +275,11 @@ def run_agent(
         enabled_tools=[tool_request.tool_name] if tool_request.tool_name != "none" else [],
         tool_request=tool_request,
     )
-    state.observation = execute_tool_request(tool_request, github_token=github_token)
+    state.observation = execute_tool_request(
+        tool_request,
+        github_token=github_token,
+        stackoverflow_token=stackoverflow_token,
+    )
     state.final_answer = build_final_answer(state)
     return state
 
@@ -419,13 +380,15 @@ def main() -> int:
         raise SystemExit("question is required in single mode")
 
     if args.mode == "demo":
+        settings = build_local_settings()
         states = [
             run_agent(
                 question=case["question"],
                 repo=args.repo,
                 issue_number=case["issue_number"],
                 allow_external_community_search=case["allow_external_community_search"],
-                github_token=os.getenv("GITHUB_TOKEN"),
+                github_token=settings.provider_tokens.github_token,
+                stackoverflow_token=settings.provider_tokens.stackoverflow_token,
             )
             for case in DEMO_CASES
         ]
@@ -439,12 +402,14 @@ def main() -> int:
             Path(args.output_md).write_text(render_demo_markdown(states), encoding="utf-8")
         return 0
 
+    settings = build_local_settings()
     state = run_agent(
         question=args.question,
         repo=args.repo,
         issue_number=args.issue_number,
         allow_external_community_search=args.allow_external_community_search,
-        github_token=os.getenv("GITHUB_TOKEN"),
+        github_token=settings.provider_tokens.github_token,
+        stackoverflow_token=settings.provider_tokens.stackoverflow_token,
     )
     state_json = json.dumps(asdict(state), indent=2, ensure_ascii=False)
     print(state_json)
