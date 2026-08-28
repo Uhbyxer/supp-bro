@@ -47,6 +47,27 @@ make final-streamlit
 | `community_lookup` | Search Stack Overflow/community sources for explicitly community-oriented questions. |
 | `clarification` | Ask follow-up questions when the request is too vague. |
 
+## Workflow Graph
+
+```mermaid
+flowchart TD
+  Q["User question"] --> C["classify_request"]
+  C --> D{"Selected route"}
+  D -->|docs_answer| DR["run_docs_rag"]
+  D -->|issue_investigation + metadata| GH["read_github_issue"]
+  D -->|issue_investigation + local context| IR["run_issue_rag"]
+  D -->|community_lookup| CR["run_community_rag"]
+  D -->|clarification| AQ["ask_clarification"]
+  IR --> GH
+  CR --> SO["search_community"]
+  DR --> A["build_answer"]
+  GH --> A
+  SO --> A
+  AQ --> A
+```
+
+The important final-project branch is `issue_investigation + metadata`: when the user asks about a concrete issue number and live metadata, the graph skips `run_issue_rag` and calls GitHub directly.
+
 ## Final improvement
 
 ### Weak point before
