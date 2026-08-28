@@ -65,3 +65,9 @@ The HW2 semantic search baseline is documented in [scripts/hw2/README.md](script
 ## HW3 Retrieval Pipeline Improvements
 
 The HW3 retrieval pipeline work is documented in [scripts/hw3/README.md](scripts/hw3/README.md). The first step moves semantic retrieval storage from the local FAISS baseline toward MongoDB Atlas Vector Search, with later space for comparing other retrieval backends such as Pinecone.
+
+## Final Project
+
+The final project workflow is documented in [scripts/final/README.md](scripts/final/README.md). It keeps the homework folders as references and adds a separate route-aware LangGraph workflow in `scripts/final`.
+
+The focused improvement is documented in [FINAL_IMPROVEMENT.md](FINAL_IMPROVEMENT.md): explicit GitHub issue metadata questions now skip local issue RAG and call the GitHub issue tool directly.
