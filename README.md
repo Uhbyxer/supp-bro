@@ -70,4 +70,4 @@ The HW3 retrieval pipeline work is documented in [scripts/hw3/README.md](scripts
 
 The final project workflow is documented in [scripts/final/README.md](scripts/final/README.md). It keeps the homework folders as references and adds a separate route-aware LangGraph workflow in `scripts/final`.
 
-The focused improvement is documented in [FINAL_IMPROVEMENT.md](FINAL_IMPROVEMENT.md): explicit GitHub issue metadata questions now skip local issue RAG and call the GitHub issue tool directly.
+The focused improvement is documented in [scripts/final/README.md](scripts/final/README.md): explicit GitHub issue metadata questions now skip local issue RAG and call the GitHub issue tool directly.
