@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -62,8 +63,8 @@ DEFAULT_DEMO_CASES = [
         "issue_number": 3,
     },
     {
-        "name": "known issue with community workarounds",
-        "question": "How to fix Debezium MongoDB buffer lock? Include possible community workarounds.",
+        "name": "known issue with community signal",
+        "question": "Debezium Mysql Connector Failed with IllegalStateException for history topic",
         "allow_external_community_search": True,
         "issue_number": None,
     },
@@ -169,6 +170,9 @@ def is_known_issue_context_request(question: str) -> bool:
             "backpressure",
             "error",
             "exception",
+            "failed",
+            "illegalstateexception",
+            "history topic",
             "unable to",
             "known issue",
             "problem",
@@ -209,7 +213,22 @@ def should_search_community_after_issue(state: AgentState, selected_route: Workf
     if not state.get("allow_external_community_search", False):
         return False
     text = state["user_goal"].lower()
-    return any(token in text for token in ["workaround", "community", "stack overflow", "stackoverflow", "anyone seen"])
+    return any(
+        token in text
+        for token in [
+            "workaround",
+            "community",
+            "stack overflow",
+            "stackoverflow",
+            "anyone seen",
+            "failed",
+            "error",
+            "exception",
+            "illegalstateexception",
+            "history topic",
+            "unable to",
+        ]
+    )
 
 
 def route_after_classification(state: AgentState) -> str:
@@ -271,15 +290,17 @@ def ask_clarification(state: AgentState) -> AgentState:
 
 def run_tool_step(state: AgentState, step_name: str) -> AgentState:
     hw5_route, _ = classify_support_intent(state["user_goal"])
+    question = state["user_goal"]
     if step_name == "read_github_issue":
         hw5_route = "known_issue_question"
     elif step_name == "search_community":
         hw5_route = "community_troubleshooting"
+        question = build_stackoverflow_query(state["user_goal"])
     elif step_name == "ask_clarifying_question":
         hw5_route = "clarification"
     request = build_tool_request(
         route=hw5_route,
-        question=state["user_goal"],
+        question=question,
         repo=state.get("repo", DEFAULT_GITHUB_REPO),
         issue_number=state.get("issue_number"),
         allow_external_community_search=state.get("allow_external_community_search", False),
@@ -293,6 +314,30 @@ def run_tool_step(state: AgentState, step_name: str) -> AgentState:
     state["requires_clarification"] = observation.tool_name == "ask_clarifying_question"
     complete_step(state, step_name, observation.error or observation.tool_name, failed=not observation.success)
     return state
+
+
+def build_stackoverflow_query(question: str) -> str:
+    text = question
+    for phrase in [
+        "include possible community workarounds",
+        "include community workarounds",
+        "possible community workarounds",
+        "community workarounds",
+        "community workaround",
+        "how to fix",
+        "has anyone seen",
+        "on stack overflow",
+        "stackoverflow",
+        "stack overflow",
+        "community",
+        "workaround",
+    ]:
+        text = re.sub(re.escape(phrase), " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"[?!.:,;]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if "debezium" not in text.lower():
+        text = f"Debezium {text}".strip()
+    return text or question
 
 
 def build_answer(state: AgentState) -> AgentState:
