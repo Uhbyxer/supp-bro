@@ -237,6 +237,22 @@ def route_after_classification(state: AgentState) -> str:
     return state["selected_route"]
 
 
+def can_read_github_issue(state: AgentState) -> bool:
+    question = state["user_goal"]
+    if state.get("issue_number") is not None or extract_issue_number(question) is not None:
+        return True
+    text = question.lower()
+    return "buffer lock" in text or "queue is full" in text
+
+
+def route_after_issue_rag(state: AgentState) -> str:
+    if can_read_github_issue(state):
+        return "read_github_issue"
+    if state.get("search_community_after_issue"):
+        return "search_community"
+    return "read_github_issue"
+
+
 def route_after_github_issue(state: AgentState) -> str:
     if state.get("search_community_after_issue"):
         return "search_community"
@@ -442,7 +458,14 @@ def create_graph():
         },
     )
     workflow.add_edge("run_docs_rag", "build_answer")
-    workflow.add_edge("run_issue_rag", "read_github_issue")
+    workflow.add_conditional_edges(
+        "run_issue_rag",
+        route_after_issue_rag,
+        {
+            "read_github_issue": "read_github_issue",
+            "search_community": "search_community",
+        },
+    )
     workflow.add_edge("run_community_rag", "search_community")
     workflow.add_conditional_edges(
         "read_github_issue",
