@@ -317,6 +317,24 @@ classify_request -> run_issue_rag -> read_github_issue -> search_community -> sy
 classify_request -> run_issue_rag -> search_community -> synthesize_answer
 ```
 
+### Remaining Limitation
+
+Intent detection у final workflow поки що deterministic: це набір правил і keywords, а не окрема модель. Це добре для demo, бо route легко пояснити й повторити, але воно не ідеальне для живого bot-а.
+
+Приклади питань, які можуть зламати або заплутати router:
+
+```text
+My connector dies after restart and the schema topic looks weird
+```
+
+Тут людина, ймовірно, питає про Debezium history/schema topic problem, але немає явних слів `Debezium`, `history topic`, `exception` або `failed`, тому router може недооцінити troubleshooting intent.
+
+```text
+Can you check whether this old Debezium problem has a fix?
+```
+
+Тут питання звучить як issue investigation, але немає ні exact error phrase, ні issue number, ні connector name. Правильний assistant мав би поставити clarification або використати model-based router, а не покладатися тільки на keywords.
+
 ## Verification
 
 Запуск focused tests:
