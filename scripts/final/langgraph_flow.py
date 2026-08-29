@@ -1,9 +1,9 @@
 """Final project: route-aware SuppBro LangGraph workflow.
 
-This module keeps the HW7 graph shape, but improves two weak points:
+This module keeps the HW7 graph shape, but improves one weak point:
 explicit GitHub issue metadata questions go directly to the GitHub tool
-instead of running local issue RAG first, and community workaround search can
-augment known issue investigation instead of becoming an artificial primary route.
+instead of running local issue RAG first. Community workaround search is modeled
+as an optional augmentation after known issue investigation.
 """
 
 from __future__ import annotations
