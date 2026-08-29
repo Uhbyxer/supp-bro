@@ -68,6 +68,77 @@ flowchart TD
 
 The important final-project branch is `issue_investigation + metadata`: when the user asks about a concrete issue number and live metadata, the graph skips `run_issue_rag` and calls GitHub directly.
 
+## How RAG Works Here
+
+The final workflow reuses the HW4 RAG pipeline for documentation answers and issue explanations. In simple terms, RAG means: first find relevant local context, then ask the LLM to answer only from that context.
+
+```text
+question
+  -> retrieve candidate chunks
+  -> filter weak retrieval results
+  -> build prompt with retrieved context
+  -> ask LLM for JSON answer with citations
+  -> validate answer and citations
+```
+
+The retrieval part combines two different search signals:
+
+| Signal | What it is good at | Example |
+|---|---|---|
+| Dense vector search | Finds semantically similar chunks even when wording is different. | `exactly once delivery` can match docs that discuss delivery guarantees. |
+| BM25 keyword search | Finds exact technical terms and error phrases. | `buffer lock`, `queue is full`, `backpressure`. |
+
+Dense vector search is useful because users do not always use the same words as the documentation. BM25 is useful because technical support often depends on exact strings from logs, exceptions, config names, or issue titles.
+
+### BM25 in simple terms
+
+BM25 is a classic keyword ranking algorithm. It scores a chunk higher when:
+
+- the query words appear in that chunk;
+- rare words match, because rare words are usually more informative;
+- the chunk is not only matching because it is very long.
+
+So for a query like:
+
+```text
+unable to acquire buffer lock queue is full
+```
+
+BM25 strongly rewards chunks that contain exact phrases such as `buffer lock` or `queue is full`.
+
+### RRF in simple terms
+
+RRF means Reciprocal Rank Fusion. It merges the dense vector ranking and the BM25 ranking without trying to compare their raw scores directly.
+
+The idea is:
+
+```text
+if a chunk is near the top in either search result list,
+give it points;
+if it is near the top in both lists,
+give it even more points.
+```
+
+The simplified formula is:
+
+```text
+RRF score = 1 / (k + dense_rank) + 1 / (k + bm25_rank)
+```
+
+where `k` is a smoothing constant that prevents rank 1 from completely dominating everything else.
+
+Example:
+
+| Chunk | Dense rank | BM25 rank | Why it can win |
+|---|---:|---:|---|
+| A | 1 | 8 | Very semantically close. |
+| B | 6 | 1 | Contains exact error terms. |
+| C | 3 | 3 | Good in both rankings, often the best balanced result. |
+
+This is useful for SuppBro because Debezium support questions can be both semantic and keyword-heavy. A user may ask a broad conceptual question, or paste a precise error phrase. Hybrid retrieval gives the workflow a better chance to find useful context in both cases.
+
+The `min_vector_score` setting is a pre-LLM guardrail. If the best vector match is below the threshold, the workflow can stop before calling the model and return a retrieval fallback. If retrieval passes but the LLM still says the context is insufficient, the post-validator records a model fallback such as `llm_reports_insufficient_context`.
+
 ## Final improvement
 
 ### Weak point before
