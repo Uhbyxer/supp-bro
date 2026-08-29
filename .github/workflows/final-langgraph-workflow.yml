@@ -1,0 +1,96 @@
+name: Run Final LangGraph Workflow
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Run one question or the built-in five-question final demo
+        required: true
+        type: choice
+        default: demo
+        options: [single, demo]
+      question:
+        description: User question for single mode
+        required: false
+        type: string
+        default: ""
+      repo:
+        description: GitHub repo for issue context
+        required: true
+        type: string
+        default: debezium/dbz
+      issue_number:
+        description: Optional GitHub issue number override
+        required: false
+        type: string
+        default: ""
+      allow_external_community_search:
+        description: Confirm Stack Overflow/community search
+        required: true
+        type: boolean
+        default: true
+      enable_rag:
+        description: Enable HW4 RAG if secrets are configured
+        required: true
+        type: boolean
+        default: true
+      min_vector_score:
+        description: HW4 retrieval filter threshold
+        required: true
+        type: string
+        default: "0.30"
+permissions: {contents: read}
+jobs:
+  final-langgraph-workflow:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+      PINECONE_INDEX: ${{ vars.PINECONE_INDEX || 'supp-bro' }}
+      PINECONE_NAMESPACE: ${{ vars.PINECONE_NAMESPACE || 'hw3-pinecone-vector' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Run final unit tests
+        run: python -m unittest scripts/final/test_langgraph_flow.py
+      - name: Run final LangGraph workflow
+        env:
+          QUESTION: ${{ inputs.question }}
+          MODE: ${{ inputs.mode }}
+          REPO: ${{ inputs.repo }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+          ALLOW_EXTERNAL_COMMUNITY_SEARCH: ${{ inputs.allow_external_community_search }}
+          ENABLE_RAG: ${{ inputs.enable_rag }}
+          MIN_VECTOR_SCORE: ${{ inputs.min_vector_score }}
+        run: |
+          args=(--mode "$MODE" --repo "$REPO" --min-vector-score "$MIN_VECTOR_SCORE" --output-json final-langgraph-result.json --output-md final-langgraph-summary.md)
+          if [[ "$MODE" == "single" ]]; then
+            args=("$QUESTION" "${args[@]}")
+          fi
+          if [[ -n "$ISSUE_NUMBER" ]]; then
+            args+=(--issue-number "$ISSUE_NUMBER")
+          fi
+          if [[ "$ALLOW_EXTERNAL_COMMUNITY_SEARCH" == "true" ]]; then
+            args+=(--allow-external-community-search)
+          fi
+          if [[ "$ENABLE_RAG" != "true" ]]; then
+            args+=(--disable-rag)
+          fi
+          python scripts/final/langgraph_flow.py "${args[@]}"
+      - if: always()
+        run: |
+          if [[ -f final-langgraph-summary.md ]]; then
+            cat final-langgraph-summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-langgraph-workflow-result
+          path: |
+            final-langgraph-result.json
+            final-langgraph-summary.md
