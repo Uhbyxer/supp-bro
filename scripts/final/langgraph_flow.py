@@ -2,7 +2,8 @@
 
 This module keeps the HW7 graph shape, but improves one weak point:
 explicit GitHub issue metadata questions go directly to the GitHub tool
-instead of running local issue RAG first.
+instead of running local issue RAG first. Community workaround search is modeled
+as an optional augmentation after known issue investigation.
 """
 
 from __future__ import annotations
@@ -61,8 +62,8 @@ DEFAULT_DEMO_CASES = [
         "issue_number": 3,
     },
     {
-        "name": "community lookup",
-        "question": "Has anyone seen Debezium unable to acquire buffer lock on Stack Overflow?",
+        "name": "known issue with community workarounds",
+        "question": "How to fix Debezium MongoDB buffer lock? Include possible community workarounds.",
         "allow_external_community_search": True,
         "issue_number": None,
     },
@@ -84,6 +85,7 @@ class AgentState(TypedDict, total=False):
     min_vector_score: float
     enable_rag: bool
     skip_issue_rag: bool
+    search_community_after_issue: bool
     selected_route: WorkflowRoute
     route_reason: str
     plan: list[dict[str, Any]]
@@ -120,14 +122,29 @@ def classify_request(state: AgentState) -> AgentState:
     append_node(state, "classify_request")
     hw5_route, route_reason = classify_support_intent(state["user_goal"])
     selected_route = map_hw5_route(hw5_route)
+    if selected_route == "community_lookup" and is_known_issue_context_request(state["user_goal"]):
+        selected_route = "issue_investigation"
+        route_reason = f"{route_reason} The question also describes a known issue, so local issue context is checked first."
     skip_issue_rag = should_skip_issue_rag(state, selected_route)
+    search_community_after_issue = should_search_community_after_issue(state, selected_route, skip_issue_rag)
     state["selected_route"] = selected_route
     state["skip_issue_rag"] = skip_issue_rag
+    state["search_community_after_issue"] = search_community_after_issue
     state["route_reason"] = route_reason
     state["plan"] = [asdict(step) for step in build_plan(selected_route)]
     if skip_issue_rag:
         state["plan"] = [step for step in state["plan"] if step["name"] != "retrieve_issues"]
         state["route_reason"] = f"{route_reason} Explicit issue metadata can be answered from GitHub directly."
+    if search_community_after_issue:
+        state["plan"].insert(
+            -1,
+            {
+                "name": "search_community",
+                "purpose": "Augment local issue context with Stack Overflow/community workaround signals.",
+                "status": "pending",
+                "detail": "",
+            },
+        )
     state.setdefault("observations", []).append(
         {
             "kind": "route",
@@ -135,10 +152,28 @@ def classify_request(state: AgentState) -> AgentState:
             "selected_route": selected_route,
             "reason": state["route_reason"],
             "skip_issue_rag": skip_issue_rag,
+            "search_community_after_issue": search_community_after_issue,
         }
     )
     complete_step(state, "classify_intent", f"HW5 route: {hw5_route}")
     return state
+
+
+def is_known_issue_context_request(question: str) -> bool:
+    text = question.lower()
+    return any(
+        token in text
+        for token in [
+            "buffer lock",
+            "queue is full",
+            "backpressure",
+            "error",
+            "exception",
+            "unable to",
+            "known issue",
+            "problem",
+        ]
+    )
 
 
 def should_skip_issue_rag(state: AgentState, selected_route: WorkflowRoute) -> bool:
@@ -168,10 +203,25 @@ def should_skip_issue_rag(state: AgentState, selected_route: WorkflowRoute) -> b
     return has_issue_number and asks_for_live_metadata
 
 
+def should_search_community_after_issue(state: AgentState, selected_route: WorkflowRoute, skip_issue_rag: bool) -> bool:
+    if selected_route != "issue_investigation" or skip_issue_rag:
+        return False
+    if not state.get("allow_external_community_search", False):
+        return False
+    text = state["user_goal"].lower()
+    return any(token in text for token in ["workaround", "community", "stack overflow", "stackoverflow", "anyone seen"])
+
+
 def route_after_classification(state: AgentState) -> str:
     if state["selected_route"] == "issue_investigation" and state.get("skip_issue_rag"):
         return "github_issue_metadata"
     return state["selected_route"]
+
+
+def route_after_github_issue(state: AgentState) -> str:
+    if state.get("search_community_after_issue"):
+        return "search_community"
+    return "build_answer"
 
 
 def run_docs_rag(state: AgentState) -> AgentState:
@@ -221,6 +271,12 @@ def ask_clarification(state: AgentState) -> AgentState:
 
 def run_tool_step(state: AgentState, step_name: str) -> AgentState:
     hw5_route, _ = classify_support_intent(state["user_goal"])
+    if step_name == "read_github_issue":
+        hw5_route = "known_issue_question"
+    elif step_name == "search_community":
+        hw5_route = "community_troubleshooting"
+    elif step_name == "ask_clarifying_question":
+        hw5_route = "clarification"
     request = build_tool_request(
         route=hw5_route,
         question=state["user_goal"],
@@ -249,7 +305,10 @@ def build_answer(state: AgentState) -> AgentState:
 def answer_from_state(state: AgentState) -> str:
     route = state["selected_route"]
     rag = state.get("rag_calls", [])[-1] if state.get("rag_calls") else None
-    tool = state.get("external_tool_results", [])[-1] if state.get("external_tool_results") else None
+    tool_results = state.get("external_tool_results", [])
+    tool = tool_results[-1] if tool_results else None
+    github_tool = next((item for item in tool_results if item["tool_name"] == "get_github_issue_context"), None)
+    community_tool = next((item for item in tool_results if item["tool_name"] == "search_stackoverflow_questions"), None)
 
     if route == "docs_answer":
         if rag and rag.get("success"):
@@ -265,9 +324,9 @@ def answer_from_state(state: AgentState) -> str:
         elif rag:
             state["fallback_used"] = True
             parts.append(f"Local RAG did not produce a grounded answer ({rag.get('status')}: {rag.get('fallback_reason') or 'no reason'}).")
-        if tool:
-            if tool["success"] and tool["tool_name"] == "get_github_issue_context":
-                data = tool["data"]
+        if github_tool:
+            if github_tool["success"]:
+                data = github_tool["data"]
                 labels = ", ".join(data.get("labels") or []) or "no labels"
                 assignees = ", ".join(data.get("assignees") or []) or "no assignees"
                 parts.append(
@@ -277,7 +336,20 @@ def answer_from_state(state: AgentState) -> str:
                 )
             else:
                 state["fallback_used"] = True
-                parts.append(f"GitHub issue tool failed: {tool.get('error')}")
+                parts.append(f"GitHub issue tool failed: {github_tool.get('error')}")
+        if community_tool:
+            if community_tool["success"]:
+                data = community_tool["data"]
+                if data.get("count", 0) == 0:
+                    parts.append("No matching Stack Overflow questions were found for the community workaround check.")
+                else:
+                    top = data["results"][0]
+                    parts.append(
+                        f"Community workaround check found {data['count']} Stack Overflow questions tagged {data['tag']}. "
+                        f"Top result: {top['title']} (score: {top['score']}, answers: {top['answer_count']}). URL: {top['url']}"
+                    )
+            else:
+                parts.append(f"Community workaround search failed: {community_tool.get('error')}")
         return " ".join(parts) if parts else "I need a concrete issue number or error signature to investigate this."
 
     if route == "community_lookup":
@@ -327,7 +399,14 @@ def create_graph():
     workflow.add_edge("run_docs_rag", "build_answer")
     workflow.add_edge("run_issue_rag", "read_github_issue")
     workflow.add_edge("run_community_rag", "search_community")
-    workflow.add_edge("read_github_issue", "build_answer")
+    workflow.add_conditional_edges(
+        "read_github_issue",
+        route_after_github_issue,
+        {
+            "search_community": "search_community",
+            "build_answer": "build_answer",
+        },
+    )
     workflow.add_edge("search_community", "build_answer")
     workflow.add_edge("ask_clarification", "build_answer")
     workflow.add_edge("build_answer", END)
@@ -352,6 +431,7 @@ def initial_state(
         "min_vector_score": min_vector_score,
         "enable_rag": enable_rag,
         "skip_issue_rag": False,
+        "search_community_after_issue": False,
         "plan": [],
         "current_step": "",
         "completed_steps": [],

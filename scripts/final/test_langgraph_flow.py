@@ -78,10 +78,28 @@ class LangGraphWorkflowTest(unittest.TestCase):
         state = self.run_case("Backpressure error says unable to acquire buffer lock and queue is full")
         self.assertEqual(state["selected_route"], "issue_investigation")
         self.assertFalse(state["skip_issue_rag"])
+        self.assertFalse(state["search_community_after_issue"])
         self.assertIn("run_issue_rag", state["executed_nodes"])
         self.assertIn("read_github_issue", state["executed_nodes"])
         self.assertEqual(state["rag_calls"][0]["status"], "rag_disabled")
         self.assertEqual(state["tool_calls"][0]["tool_name"], "get_github_issue_context")
+
+    def test_known_issue_workaround_question_adds_community_after_github(self) -> None:
+        state = self.run_case(
+            "How to fix Debezium MongoDB buffer lock? Include possible community workarounds.",
+            allow_external_community_search=True,
+        )
+        self.assertEqual(state["selected_route"], "issue_investigation")
+        self.assertFalse(state["skip_issue_rag"])
+        self.assertTrue(state["search_community_after_issue"])
+        self.assertEqual(
+            state["executed_nodes"],
+            ["classify_request", "run_issue_rag", "read_github_issue", "search_community", "build_answer"],
+        )
+        self.assertEqual(
+            [call["tool_name"] for call in state["tool_calls"]],
+            ["get_github_issue_context", "search_stackoverflow_questions"],
+        )
 
     def test_all_five_demo_cases_have_routes_and_nodes(self) -> None:
         with patch("langgraph_flow.execute_tool_request", side_effect=self.fake_tool):
@@ -97,7 +115,11 @@ class LangGraphWorkflowTest(unittest.TestCase):
         self.assertEqual(len(states), 5)
         self.assertEqual(
             {state["selected_route"] for state in states},
-            {"docs_answer", "issue_investigation", "community_lookup", "clarification"},
+            {"docs_answer", "issue_investigation", "clarification"},
+        )
+        self.assertEqual(
+            states[3]["executed_nodes"],
+            ["classify_request", "run_issue_rag", "read_github_issue", "search_community", "build_answer"],
         )
         for state in states:
             self.assertEqual(state["executed_nodes"][0], "classify_request")

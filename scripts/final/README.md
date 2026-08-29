@@ -1,6 +1,6 @@
 # Final project: route-aware SuppBro workflow
 
-Ця папка містить final project workflow. Він базується на HW7 `LangGraph` implementation, але лежить окремо від homework-папок і додає одне точкове покращення: explicit GitHub issue metadata questions пропускають local issue RAG і йдуть прямо в GitHub tool.
+Ця папка містить final project workflow. Він базується на HW7 `LangGraph` implementation, але лежить окремо від homework-папок і додає точкове покращення routing: explicit GitHub issue metadata questions пропускають local issue RAG і йдуть прямо в GitHub tool. Workaround/community questions для known issue проходять через local issue context та GitHub перед Stack Overflow/community search.
 
 ## Як Запускати
 
@@ -53,7 +53,7 @@ Built-in demo mode проганяє п'ять questions, які показуют
 | 1 | `Can I get exactly once delivery with Debezium?` | `docs_answer`: documentation RAG. |
 | 2 | `Explain the known Debezium MongoDB buffer lock problem from the local context.` | `issue_investigation`: local issue RAG + GitHub tool. |
 | 3 | `Is Debezium issue #3 still open and who worked on it?` | Final improvement: skip RAG і direct GitHub tool. |
-| 4 | `Has anyone seen Debezium unable to acquire buffer lock on Stack Overflow?` | `community_lookup`: local context + Stack Overflow search. |
+| 4 | `How to fix Debezium MongoDB buffer lock? Include possible community workarounds.` | `issue_investigation`: local issue RAG + GitHub tool + Stack Overflow/community search. |
 | 5 | `Help with Debezium` | `clarification`: уточнення замість випадкового RAG. |
 
 ## Routes
@@ -62,7 +62,7 @@ Built-in demo mode проганяє п'ять questions, які показуют
 |---|---|
 | `docs_answer` | Відповісти на documentation-style question через local RAG. |
 | `issue_investigation` | Розібрати known issue через local issue context і/або live GitHub metadata. |
-| `community_lookup` | Шукати Stack Overflow/community sources для explicitly community-oriented questions. |
+| `community_lookup` | Підтримується для explicitly community-only questions, але final demo показує реалістичніший шлях: community search як додатковий крок після issue investigation. |
 | `clarification` | Поставити уточнюючі питання, якщо request занадто нечіткий. |
 
 ## Workflow Graph
@@ -79,12 +79,15 @@ flowchart TD
   IR --> GH
   CR --> SO["search_community"]
   DR --> A["build_answer"]
-  GH --> A
+  GH -->|community workaround requested| SO
+  GH -->|otherwise| A
   SO --> A
   AQ --> A
 ```
 
 Ключова final-project гілка тут: `issue_investigation + metadata`. Якщо користувач питає про конкретний issue number і live metadata, workflow пропускає `run_issue_rag` і одразу викликає GitHub tool.
+
+Друга важлива гілка: `issue_investigation + community workaround requested`. Якщо користувач питає, як виправити known issue або просить community workarounds, workflow спочатку дивиться local issue context, потім GitHub issue metadata, і тільки після цього додає Stack Overflow/community signal.
 
 ## Як Тут Працює RAG
 
@@ -227,7 +230,7 @@ RRF score = 1 / (k + dense_rank) + 1 / (k + bm25_rank)
 
 ## Final Improvement
 
-### Weak Point Before
+### Weak Point 1 Before
 
 HW7 workflow правильно route-ив explicit GitHub issue questions у `issue_investigation`, але завжди запускав local issue RAG перед GitHub tool.
 
@@ -242,7 +245,7 @@ Tool:     get_github_issue_context success
 
 Це працювало, але не ідеально. Питання просить live issue metadata: state, assignees, labels, participants, comments, updated date і URL. Local RAG не є найкращим джерелом для таких даних, бо він може бути stale або incomplete. Запуск RAG перед GitHub tool додавав очікуваний fallback у trace і робив workflow шумнішим.
 
-### Improvement After
+### Improvement 1 After
 
 Final workflow визначає explicit GitHub issue metadata questions і пропускає local issue RAG для цієї гілки.
 
@@ -271,6 +274,18 @@ Workflow пропускає issue RAG тільки коли одночасно �
 
 Це тримає improvement вузьким: exact issue metadata йде прямо в live tool, а broader issue investigation все ще може комбінувати local RAG context із GitHub metadata.
 
+### Community Workaround Flow
+
+Final workflow трактує known issue/workaround question як `issue_investigation`, а Stack Overflow додає після local issue context і GitHub tool.
+
+```text
+Question: How to fix Debezium MongoDB buffer lock? Include possible community workarounds.
+After:    classify_request -> run_issue_rag -> read_github_issue -> search_community -> build_answer
+Route:    issue_investigation
+```
+
+Це стандартний шлях для такого питання: спочатку grounded local/project context, потім live GitHub metadata, і лише потім community results як допоміжний evidence source.
+
 ## Verification
 
 Запуск focused tests:
@@ -290,4 +305,10 @@ Explicit issue metadata case має показати:
 ```text
 classify_request -> read_github_issue -> build_answer
 RAG status: not_called
+```
+
+Known issue with community workarounds case має показати:
+
+```text
+classify_request -> run_issue_rag -> read_github_issue -> search_community -> build_answer
 ```
