@@ -53,7 +53,7 @@ Built-in demo mode проганяє п'ять questions, які показуют
 | 1 | `Can I get exactly once delivery with Debezium?` | `docs_answer`: documentation RAG. |
 | 2 | `Explain the known Debezium MongoDB buffer lock problem from the local context.` | `issue_investigation`: local issue RAG + GitHub tool. |
 | 3 | `Is Debezium issue #3 still open and who worked on it?` | Final improvement: skip RAG і direct GitHub tool. |
-| 4 | `How to fix Debezium MongoDB buffer lock? Include possible community workarounds.` | `issue_investigation`: local issue RAG + GitHub tool + Stack Overflow/community search. |
+| 4 | `Debezium Mysql Connector Failed with IllegalStateException for history topic` | `issue_investigation`: troubleshooting question + local issue RAG + clean Stack Overflow query. |
 | 5 | `Help with Debezium` | `clarification`: уточнення замість випадкового RAG. |
 
 ## Routes
@@ -87,7 +87,20 @@ flowchart TD
 
 Ключова final-project гілка тут: `issue_investigation + metadata`. Якщо користувач питає про конкретний issue number і live metadata, workflow пропускає `run_issue_rag` і одразу викликає GitHub tool.
 
-Друга важлива гілка: `issue_investigation + community workaround requested`. Якщо користувач питає, як виправити known issue або просить community workarounds, workflow спочатку дивиться local issue context, потім GitHub issue metadata, і тільки після цього додає Stack Overflow/community signal.
+Друга важлива гілка: `issue_investigation + community signal`. Якщо користувач питає про troubleshooting error, workflow спочатку дивиться local issue context. Якщо питання має конкретний issue number або відому локальну евристику, workflow також додає GitHub metadata. Після цього він може додати Stack Overflow/community signal.
+
+Для Stack Overflow workflow будує окремий clean technical query. Routing може спрацювати від слів типу `failed`, `IllegalStateException`, `history topic`, `workaround` або `community`, але у Stack Overflow search не треба додавати службові routing-слова. Наприклад:
+
+```text
+User question: Debezium Mysql Connector Failed with IllegalStateException for history topic
+Stack query:   Debezium Mysql Connector Failed with IllegalStateException for history topic
+```
+
+А якщо користувач пише `How to fix ... Include possible community workarounds`, search query очищається до технічної частини:
+
+```text
+Stack query: Debezium MongoDB buffer lock
+```
 
 ## Як Тут Працює RAG
 
@@ -276,15 +289,15 @@ Workflow пропускає issue RAG тільки коли одночасно �
 
 ### Community Workaround Flow
 
-Final workflow трактує known issue/workaround question як `issue_investigation`, а Stack Overflow додає після local issue context і GitHub tool.
+Final workflow трактує troubleshooting question як `issue_investigation`, а Stack Overflow додає після local issue context. GitHub metadata додається тоді, коли workflow має concrete issue number або відому евристику для цього error.
 
 ```text
-Question: How to fix Debezium MongoDB buffer lock? Include possible community workarounds.
+Question: Debezium Mysql Connector Failed with IllegalStateException for history topic
 After:    classify_request -> run_issue_rag -> read_github_issue -> search_community -> build_answer
 Route:    issue_investigation
 ```
 
-Це стандартний шлях для такого питання: спочатку grounded local/project context, потім live GitHub metadata, і лише потім community results як допоміжний evidence source.
+Це стандартний шлях для такого питання: спочатку grounded local/project context, потім project metadata, якщо доступна, і лише потім community results як допоміжний evidence source.
 
 ## Verification
 
@@ -307,7 +320,7 @@ classify_request -> read_github_issue -> build_answer
 RAG status: not_called
 ```
 
-Known issue with community workarounds case має показати:
+Known issue with community signal case має показати:
 
 ```text
 classify_request -> run_issue_rag -> read_github_issue -> search_community -> build_answer
