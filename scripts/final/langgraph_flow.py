@@ -29,7 +29,6 @@ sys.path.insert(0, str(ROOT / "scripts/hw6"))
 sys.path.insert(0, str(ROOT / "scripts/hw5"))
 
 from agentic_workflow import (  # noqa: E402
-    DEFAULT_DEMO_CASES,
     DEFAULT_GITHUB_REPO,
     RAG_FALLBACK,
     build_plan,
@@ -41,6 +40,39 @@ from agentic_workflow import (  # noqa: E402
 from external_tool_router import build_tool_request, classify_support_intent, execute_tool_request, extract_issue_number  # noqa: E402
 
 WorkflowRoute = Literal["docs_answer", "issue_investigation", "community_lookup", "clarification"]
+
+DEFAULT_DEMO_CASES = [
+    {
+        "name": "documentation answer",
+        "question": "Can I get exactly once delivery with Debezium?",
+        "allow_external_community_search": False,
+        "issue_number": None,
+    },
+    {
+        "name": "known issue explanation from local context",
+        "question": "Explain the known Debezium MongoDB buffer lock problem from the local context.",
+        "allow_external_community_search": False,
+        "issue_number": None,
+    },
+    {
+        "name": "explicit GitHub issue metadata",
+        "question": "Is Debezium issue #3 still open and who worked on it?",
+        "allow_external_community_search": False,
+        "issue_number": 3,
+    },
+    {
+        "name": "community lookup",
+        "question": "Has anyone seen Debezium unable to acquire buffer lock on Stack Overflow?",
+        "allow_external_community_search": True,
+        "issue_number": None,
+    },
+    {
+        "name": "clarification",
+        "question": "Help with Debezium",
+        "allow_external_community_search": False,
+        "issue_number": None,
+    },
+]
 
 
 class AgentState(TypedDict, total=False):
