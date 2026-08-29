@@ -1,10 +1,10 @@
 # Final project: route-aware SuppBro workflow
 
-This folder contains the final project workflow. It is based on the HW7 LangGraph implementation, but lives separately from the homework folders and adds one focused improvement: explicit GitHub issue metadata questions skip local issue RAG and go directly to the GitHub issue tool.
+Ця папка містить final project workflow. Він базується на HW7 `LangGraph` implementation, але лежить окремо від homework-папок і додає одне точкове покращення: explicit GitHub issue metadata questions пропускають local issue RAG і йдуть прямо в GitHub tool.
 
-## How to run
+## Як Запускати
 
-Single question:
+Одне питання:
 
 ```bash
 python scripts/final/langgraph_flow.py \
@@ -14,7 +14,7 @@ python scripts/final/langgraph_flow.py \
   --output-md final-langgraph-summary.md
 ```
 
-Demo on five questions:
+Demo на п'яти питаннях:
 
 ```bash
 python scripts/final/langgraph_flow.py \
@@ -23,7 +23,7 @@ python scripts/final/langgraph_flow.py \
   --output-md outputs/final_langgraph_examples.md
 ```
 
-Run without HW4 credentials:
+Запуск без HW4 credentials:
 
 ```bash
 python scripts/final/langgraph_flow.py \
@@ -40,12 +40,12 @@ make final-streamlit
 
 ## Routes
 
-| Route | Purpose |
+| Route | Для чого |
 |---|---|
-| `docs_answer` | Answer documentation-style questions using local RAG. |
-| `issue_investigation` | Investigate known issues using local issue context and/or live GitHub metadata. |
-| `community_lookup` | Search Stack Overflow/community sources for explicitly community-oriented questions. |
-| `clarification` | Ask follow-up questions when the request is too vague. |
+| `docs_answer` | Відповісти на documentation-style question через local RAG. |
+| `issue_investigation` | Розібрати known issue через local issue context і/або live GitHub metadata. |
+| `community_lookup` | Шукати Stack Overflow/community sources для explicitly community-oriented questions. |
+| `clarification` | Поставити уточнюючі питання, якщо request занадто нечіткий. |
 
 ## Workflow Graph
 
@@ -66,11 +66,11 @@ flowchart TD
   AQ --> A
 ```
 
-The important final-project branch is `issue_investigation + metadata`: when the user asks about a concrete issue number and live metadata, the graph skips `run_issue_rag` and calls GitHub directly.
+Ключова final-project гілка тут: `issue_investigation + metadata`. Якщо користувач питає про конкретний issue number і live metadata, workflow пропускає `run_issue_rag` і одразу викликає GitHub tool.
 
-## How RAG Works Here
+## Як Тут Працює RAG
 
-The final workflow reuses the HW4 RAG pipeline for documentation answers and issue explanations. In simple terms, RAG means: first find relevant local context, then ask the LLM to answer only from that context.
+Final workflow повторно використовує HW4 RAG pipeline для documentation answers і issue explanations. Простими словами, RAG означає: спочатку знайти релевантний local context, а потім попросити LLM відповісти тільки з цього context.
 
 ```text
 question
@@ -81,71 +81,139 @@ question
   -> validate answer and citations
 ```
 
-The retrieval part combines two different search signals:
+Retrieval комбінує два search signals:
 
-| Signal | What it is good at | Example |
+| Signal | Для чого корисний | Приклад |
 |---|---|---|
-| Dense vector search | Finds semantically similar chunks even when wording is different. | `exactly once delivery` can match docs that discuss delivery guarantees. |
-| BM25 keyword search | Finds exact technical terms and error phrases. | `buffer lock`, `queue is full`, `backpressure`. |
+| Dense vector search | Знаходить семантично схожі chunks навіть тоді, коли wording інший. | `exactly once delivery` може знайти docs про delivery guarantees. |
+| BM25 keyword search | Знаходить точні technical terms і error phrases. | `buffer lock`, `queue is full`, `backpressure`. |
 
-Dense vector search is useful because users do not always use the same words as the documentation. BM25 is useful because technical support often depends on exact strings from logs, exceptions, config names, or issue titles.
+Dense vector search корисний, бо користувач не завжди формулює питання тими самими словами, які є в documentation. BM25 корисний, бо technical support часто залежить від точних рядків із logs, exceptions, config names або issue titles.
 
-### BM25 in simple terms
+### Що Зберігається В Pinecone
 
-BM25 is a classic keyword ranking algorithm. It scores a chunk higher when:
+У Pinecone зберігаються vector representations для chunks. Кожен chunk має:
 
-- the query words appear in that chunk;
-- rare words match, because rare words are usually more informative;
-- the chunk is not only matching because it is very long.
+- `id`, щоб потім повернути конкретний fragment;
+- `values`, тобто embedding vector;
+- `metadata`, щоб знати source, file, chunk text або інші поля для filtering.
 
-So for a query like:
+Спрощена структура Pinecone record:
+
+```json
+{
+  "id": "pages:configuration/storage.adoc:chunk-3",
+  "values": [0.012, -0.034, 0.087],
+  "metadata": {
+    "source": "pages",
+    "source_file": "configuration/storage.adoc",
+    "chunk_id": "pages:configuration/storage.adoc:chunk-3",
+    "text": "Debezium stores offsets and schema history..."
+  }
+}
+```
+
+Для issue chunk структура може бути схожа:
+
+```json
+{
+  "id": "issues:debezium-project-5:issue-3:chunk-1",
+  "values": [0.044, 0.018, -0.025],
+  "metadata": {
+    "source": "issues",
+    "source_file": "debezium-project-5.jsonl",
+    "chunk_id": "issues:debezium-project-5:issue-3:chunk-1",
+    "text": "mongodb : Unable to acquire buffer lock, buffer queue is likely full..."
+  }
+}
+```
+
+Коли workflow запускає RAG, він передає query у retrieval layer. Для documentation route використовується metadata filter:
+
+```json
+{
+  "source": {
+    "$eq": "pages"
+  }
+}
+```
+
+Для issue route використовується:
+
+```json
+{
+  "source": {
+    "$eq": "issues"
+  }
+}
+```
+
+Приклад query для Pinecone dense search:
+
+```text
+Question: "What does unable to acquire buffer lock mean in Debezium?"
+Filter:   source = issues
+Top K:    candidate chunks
+```
+
+Pinecone повертає найближчі chunks разом із `vector_score`. Чим вищий `vector_score`, тим ближче embedding query до embedding chunk-а. Але сам `vector_score` ще не гарантує, що chunk достатній для grounded answer. Він тільки показує semantic similarity.
+
+### BM25 Простими Словами
+
+BM25 це classic keyword ranking algorithm. Він дає chunk-у вищий score, якщо:
+
+- query words зустрічаються в цьому chunk;
+- rare words збігаються, бо вони зазвичай більш інформативні;
+- chunk не виграє тільки тому, що він дуже довгий.
+
+Для query:
 
 ```text
 unable to acquire buffer lock queue is full
 ```
 
-BM25 strongly rewards chunks that contain exact phrases such as `buffer lock` or `queue is full`.
+BM25 сильно піднімає chunks, де є exact phrases типу `buffer lock` або `queue is full`.
 
-### RRF in simple terms
+### RRF Простими Словами
 
-RRF means Reciprocal Rank Fusion. It merges the dense vector ranking and the BM25 ranking without trying to compare their raw scores directly.
+RRF означає `Reciprocal Rank Fusion`. Він об'єднує dense vector ranking і BM25 ranking, не намагаючись прямо порівнювати їхні raw scores.
 
-The idea is:
+Ідея така:
 
 ```text
-if a chunk is near the top in either search result list,
-give it points;
-if it is near the top in both lists,
-give it even more points.
+якщо chunk високо в одному зі списків,
+він отримує points;
+якщо chunk високо в обох списках,
+він отримує ще більше points.
 ```
 
-The simplified formula is:
+Спрощена formula:
 
 ```text
 RRF score = 1 / (k + dense_rank) + 1 / (k + bm25_rank)
 ```
 
-where `k` is a smoothing constant that prevents rank 1 from completely dominating everything else.
+де `k` це smoothing constant, який не дає rank 1 занадто сильно домінувати над усіма іншими.
 
-Example:
+Приклад:
 
-| Chunk | Dense rank | BM25 rank | Why it can win |
+| Chunk | Dense rank | BM25 rank | Чому може виграти |
 |---|---:|---:|---|
-| A | 1 | 8 | Very semantically close. |
-| B | 6 | 1 | Contains exact error terms. |
-| C | 3 | 3 | Good in both rankings, often the best balanced result. |
+| A | 1 | 8 | Дуже близький semantic match. |
+| B | 6 | 1 | Має exact error terms. |
+| C | 3 | 3 | Добрий в обох rankings, часто найкращий balanced result. |
 
-This is useful for SuppBro because Debezium support questions can be both semantic and keyword-heavy. A user may ask a broad conceptual question, or paste a precise error phrase. Hybrid retrieval gives the workflow a better chance to find useful context in both cases.
+Це корисно для SuppBro, бо Debezium support questions можуть бути і semantic, і keyword-heavy. Користувач може спитати широке conceptual question або вставити точну error phrase. Hybrid retrieval дає workflow більший шанс знайти корисний context в обох випадках.
 
-The `min_vector_score` setting is a pre-LLM guardrail. If the best vector match is below the threshold, the workflow can stop before calling the model and return a retrieval fallback. If retrieval passes but the LLM still says the context is insufficient, the post-validator records a model fallback such as `llm_reports_insufficient_context`.
+`min_vector_score` це pre-LLM guardrail. Якщо найкращий vector match нижчий за threshold, workflow може зупинитися до виклику model і повернути retrieval fallback. Якщо retrieval пройшов, але LLM все одно каже, що context недостатній, post-validator записує model fallback, наприклад `llm_reports_insufficient_context`.
 
-## Final improvement
+## Final Improvement
 
-### Weak point before
+### Weak Point Before
 
-The HW7 workflow correctly routed explicit GitHub issue questions to `issue_investigation`, but it always ran local issue RAG before calling the GitHub tool.
+HW7 workflow правильно route-ив explicit GitHub issue questions у `issue_investigation`, але завжди запускав local issue RAG перед GitHub tool.
 
-For example:
+Наприклад:
 
 ```text
 Question: Is Debezium issue #3 still open and who worked on it?
@@ -154,11 +222,11 @@ RAG:      model_fallback
 Tool:     get_github_issue_context success
 ```
 
-This was functional, but not ideal. The question asks for live issue metadata: state, assignees, labels, participants, comments, updated date, and URL. Local RAG is not the best source for that data because it can be stale or incomplete. Running it first added an expected fallback to the trace and made the workflow look noisier than necessary.
+Це працювало, але не ідеально. Питання просить live issue metadata: state, assignees, labels, participants, comments, updated date і URL. Local RAG не є найкращим джерелом для таких даних, бо він може бути stale або incomplete. Запуск RAG перед GitHub tool додавав очікуваний fallback у trace і робив workflow шумнішим.
 
-### Improvement after
+### Improvement After
 
-The final workflow detects explicit GitHub issue metadata questions and skips local issue RAG for that branch.
+Final workflow визначає explicit GitHub issue metadata questions і пропускає local issue RAG для цієї гілки.
 
 ```text
 Question: Is Debezium issue #3 still open and who worked on it?
@@ -167,7 +235,7 @@ RAG:      not_called
 Tool:     get_github_issue_context success
 ```
 
-The workflow still uses RAG for issue-like error questions that need local context before checking a related GitHub issue.
+Workflow все ще використовує RAG для issue-like error questions, де потрібен local context перед перевіркою related GitHub issue.
 
 ```text
 Question: Backpressure error says unable to acquire buffer lock and queue is full
@@ -176,30 +244,30 @@ RAG:      called
 Tool:     get_github_issue_context success
 ```
 
-### Detection rule
+### Detection Rule
 
-The workflow skips issue RAG only when both are true:
+Workflow пропускає issue RAG тільки коли одночасно виконуються дві умови:
 
-- the user provides an explicit issue number, either in the question or through `--issue-number`;
-- the question asks for live metadata such as status, open/closed state, assignees, labels, participants, comments, updates, or who worked on the issue.
+- користувач дає explicit issue number у question або через `--issue-number`;
+- question питає про live metadata: status, open/closed state, assignees, labels, participants, comments, updates або who worked on the issue.
 
-This keeps the improvement narrow: exact issue metadata goes directly to the live tool, while broader issue investigation can still combine local RAG context with GitHub metadata.
+Це тримає improvement вузьким: exact issue metadata йде прямо в live tool, а broader issue investigation все ще може комбінувати local RAG context із GitHub metadata.
 
 ## Verification
 
-Run the focused tests:
+Запуск focused tests:
 
 ```bash
 python -m unittest scripts/final/test_langgraph_flow.py
 ```
 
-Run the final demo without external RAG credentials:
+Запуск final demo без external RAG credentials:
 
 ```bash
 python scripts/final/langgraph_flow.py --mode demo --disable-rag
 ```
 
-The explicit issue metadata case should show:
+Explicit issue metadata case має показати:
 
 ```text
 classify_request -> read_github_issue -> build_answer
