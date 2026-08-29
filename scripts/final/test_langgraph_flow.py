@@ -104,6 +104,7 @@ class LangGraphWorkflowTest(unittest.TestCase):
             state["tool_calls"][0]["payload"]["query"],
             "Debezium Mysql Connector Failed with IllegalStateException for history topic",
         )
+        self.assertNotIn("read_github_issue", [step["name"] for step in state["plan"]])
 
     def test_stackoverflow_query_drops_routing_words(self) -> None:
         query = langgraph_flow.build_stackoverflow_query(
