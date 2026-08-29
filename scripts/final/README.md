@@ -38,6 +38,24 @@ Streamlit demo:
 make final-streamlit
 ```
 
+GitHub Actions demo:
+
+```text
+Actions -> Run Final LangGraph Workflow -> Run workflow
+```
+
+## Demo Cases
+
+Built-in demo mode проганяє п'ять questions, які показують різні гілки workflow:
+
+| # | Question | Що показує |
+|---:|---|---|
+| 1 | `Can I get exactly once delivery with Debezium?` | `docs_answer`: documentation RAG. |
+| 2 | `Explain the known Debezium MongoDB buffer lock problem from the local context.` | `issue_investigation`: local issue RAG + GitHub tool. |
+| 3 | `Is Debezium issue #3 still open and who worked on it?` | Final improvement: skip RAG і direct GitHub tool. |
+| 4 | `Has anyone seen Debezium unable to acquire buffer lock on Stack Overflow?` | `community_lookup`: local context + Stack Overflow search. |
+| 5 | `Help with Debezium` | `clarification`: уточнення замість випадкового RAG. |
+
 ## Routes
 
 | Route | Для чого |
