@@ -1,6 +1,6 @@
 # Final project: route-aware SuppBro workflow
 
-Ця папка містить final project workflow. Він базується на HW7 `LangGraph` implementation, але лежить окремо від homework-папок і додає точкове покращення routing: explicit GitHub issue metadata questions пропускають local issue RAG і йдуть прямо в GitHub tool, а workaround/community questions для known issue проходять через local issue context та GitHub перед Stack Overflow/community search.
+Ця папка містить final project workflow. Він базується на HW7 `LangGraph` implementation, але лежить окремо від homework-папок і додає точкове покращення routing: explicit GitHub issue metadata questions пропускають local issue RAG і йдуть прямо в GitHub tool. Workaround/community questions для known issue проходять через local issue context та GitHub перед Stack Overflow/community search.
 
 ## Як Запускати
 
@@ -274,19 +274,7 @@ Workflow пропускає issue RAG тільки коли одночасно �
 
 Це тримає improvement вузьким: exact issue metadata йде прямо в live tool, а broader issue investigation все ще може комбінувати local RAG context із GitHub metadata.
 
-### Weak Point 2 Before
-
-Окремий demo case для Stack Overflow був занадто штучний:
-
-```text
-Question: Has anyone seen Debezium unable to acquire buffer lock on Stack Overflow?
-Before:   classify_request -> run_community_rag -> search_community -> build_answer
-Route:    community_lookup
-```
-
-Такий шлях технічно працює, але для support bot-а він менш природний. Реальний користувач частіше питає, як виправити проблему, і може попросити community workarounds як додатковий signal, а не як головне джерело.
-
-### Improvement 2 After
+### Community Workaround Flow
 
 Final workflow трактує known issue/workaround question як `issue_investigation`, а Stack Overflow додає після local issue context і GitHub tool.
 
@@ -296,7 +284,7 @@ After:    classify_request -> run_issue_rag -> read_github_issue -> search_commu
 Route:    issue_investigation
 ```
 
-Це робить workflow ближчим до реального support behavior: спочатку grounded local/project context, потім live GitHub metadata, і лише потім community results як допоміжний evidence source.
+Це стандартний шлях для такого питання: спочатку grounded local/project context, потім live GitHub metadata, і лише потім community results як допоміжний evidence source.
 
 ## Verification
 
