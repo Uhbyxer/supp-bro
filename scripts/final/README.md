@@ -317,6 +317,26 @@ classify_request -> run_issue_rag -> read_github_issue -> search_community -> sy
 classify_request -> run_issue_rag -> search_community -> synthesize_answer
 ```
 
+### Remaining Limitations
+
+Intent detection у final workflow поки що deterministic: це набір правил і keywords, а не окрема модель. Це добре для demo, бо route легко пояснити й повторити, але воно не ідеальне для живого bot-а.
+
+Приклад питання, яке може заплутати router:
+
+```text
+It worked yesterday, but after restart it cannot recover its internal state
+```
+
+Тут людина може описувати Debezium schema/history recovery problem, але немає явних слів `Debezium`, `schema history`, `topic`, `exception` або `failed`, тому deterministic router може піти в clarification або documentation route замість troubleshooting investigation.
+
+Також final workflow не має persistent memory або conversation state. Він не пам'ятає active issue/topic між репліками й не може сам розкрити посилання на попередній контекст.
+
+```text
+Does this issue have a workaround now?
+```
+
+Тут правильна відповідь залежить від того, що означає `this issue`: який connector, який error або який issue number обговорювався раніше. Поточний workflow має попросити уточнення, бо не зберігає таку пам'ять.
+
 ## Verification
 
 Запуск focused tests:
