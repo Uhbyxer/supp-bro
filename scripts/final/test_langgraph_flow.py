@@ -84,9 +84,9 @@ class LangGraphWorkflowTest(unittest.TestCase):
         self.assertEqual(state["rag_calls"][0]["status"], "rag_disabled")
         self.assertEqual(state["tool_calls"][0]["tool_name"], "get_github_issue_context")
 
-    def test_known_issue_workaround_question_adds_community_after_github(self) -> None:
+    def test_troubleshooting_question_adds_community_with_clean_query(self) -> None:
         state = self.run_case(
-            "How to fix Debezium MongoDB buffer lock? Include possible community workarounds.",
+            "Debezium Mysql Connector Failed with IllegalStateException for history topic",
             allow_external_community_search=True,
         )
         self.assertEqual(state["selected_route"], "issue_investigation")
@@ -98,8 +98,18 @@ class LangGraphWorkflowTest(unittest.TestCase):
         )
         self.assertEqual(
             [call["tool_name"] for call in state["tool_calls"]],
-            ["get_github_issue_context", "search_stackoverflow_questions"],
+            ["ask_clarifying_question", "search_stackoverflow_questions"],
         )
+        self.assertEqual(
+            state["tool_calls"][1]["payload"]["query"],
+            "Debezium Mysql Connector Failed with IllegalStateException for history topic",
+        )
+
+    def test_stackoverflow_query_drops_routing_words(self) -> None:
+        query = langgraph_flow.build_stackoverflow_query(
+            "How to fix Debezium MongoDB buffer lock? Include possible community workarounds."
+        )
+        self.assertEqual(query, "Debezium MongoDB buffer lock")
 
     def test_all_five_demo_cases_have_routes_and_nodes(self) -> None:
         with patch("langgraph_flow.execute_tool_request", side_effect=self.fake_tool):
