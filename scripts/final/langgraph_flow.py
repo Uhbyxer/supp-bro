@@ -136,6 +136,8 @@ def classify_request(state: AgentState) -> AgentState:
     if skip_issue_rag:
         state["plan"] = [step for step in state["plan"] if step["name"] != "retrieve_issues"]
         state["route_reason"] = f"{route_reason} Explicit issue metadata can be answered from GitHub directly."
+    if search_community_after_issue and not can_read_github_issue(state):
+        state["plan"] = [step for step in state["plan"] if step["name"] != "read_github_issue"]
     if search_community_after_issue:
         state["plan"].insert(
             -1,
