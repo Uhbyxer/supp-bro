@@ -337,6 +337,8 @@ Does this issue have a workaround now?
 
 Тут правильна відповідь залежить від того, що означає `this issue`: який connector, який error або який issue number обговорювався раніше. Поточний workflow має попросити уточнення, бо не зберігає таку пам'ять.
 
+Ще одне обмеження: BM25 у цьому проєкті обчислюється локально поверх доступних chunks. Для навчального corpus це нормально і прозоро, але для великої кількості документів це не production-ready підхід. У production BM25/keyword частину краще винести в окремий index або search engine, наприклад Elasticsearch/OpenSearch, Vespa або інший сервіс, який нормально масштабує inverted index.
+
 ## Verification
 
 Запуск focused tests:
