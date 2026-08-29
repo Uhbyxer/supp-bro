@@ -324,10 +324,10 @@ Intent detection у final workflow поки що deterministic: це набір 
 Приклади питань, які можуть зламати або заплутати router:
 
 ```text
-My connector dies after restart and the schema topic looks weird
+It worked yesterday, but after restart it cannot recover its internal state
 ```
 
-Тут людина, ймовірно, питає про Debezium history/schema topic problem, але немає явних слів `Debezium`, `history topic`, `exception` або `failed`, тому router може недооцінити troubleshooting intent.
+Тут людина може описувати Debezium schema/history recovery problem, але немає явних слів `Debezium`, `schema history`, `topic`, `exception` або `failed`, тому deterministic router може піти в clarification або documentation route замість troubleshooting investigation.
 
 ```text
 Can you check whether this old Debezium problem has a fix?
