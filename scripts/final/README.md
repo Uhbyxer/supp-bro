@@ -76,7 +76,8 @@ flowchart TD
   D -->|issue_investigation + local context| IR["run_issue_rag"]
   D -->|community_lookup| CR["run_community_rag"]
   D -->|clarification| AQ["ask_clarification"]
-  IR --> GH
+  IR -->|known issue number or mapping| GH
+  IR -->|community signal only| SO
   CR --> SO["search_community"]
   DR --> A["build_answer"]
   GH -->|community workaround requested| SO
@@ -293,7 +294,7 @@ Final workflow трактує troubleshooting question як `issue_investigation
 
 ```text
 Question: Debezium Mysql Connector Failed with IllegalStateException for history topic
-After:    classify_request -> run_issue_rag -> read_github_issue -> search_community -> build_answer
+After:    classify_request -> run_issue_rag -> search_community -> build_answer
 Route:    issue_investigation
 ```
 
@@ -323,5 +324,5 @@ RAG status: not_called
 Known issue with community signal case має показати:
 
 ```text
-classify_request -> run_issue_rag -> read_github_issue -> search_community -> build_answer
+classify_request -> run_issue_rag -> search_community -> build_answer
 ```

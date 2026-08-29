@@ -94,14 +94,14 @@ class LangGraphWorkflowTest(unittest.TestCase):
         self.assertTrue(state["search_community_after_issue"])
         self.assertEqual(
             state["executed_nodes"],
-            ["classify_request", "run_issue_rag", "read_github_issue", "search_community", "build_answer"],
+            ["classify_request", "run_issue_rag", "search_community", "build_answer"],
         )
         self.assertEqual(
             [call["tool_name"] for call in state["tool_calls"]],
-            ["ask_clarifying_question", "search_stackoverflow_questions"],
+            ["search_stackoverflow_questions"],
         )
         self.assertEqual(
-            state["tool_calls"][1]["payload"]["query"],
+            state["tool_calls"][0]["payload"]["query"],
             "Debezium Mysql Connector Failed with IllegalStateException for history topic",
         )
 
@@ -129,7 +129,7 @@ class LangGraphWorkflowTest(unittest.TestCase):
         )
         self.assertEqual(
             states[3]["executed_nodes"],
-            ["classify_request", "run_issue_rag", "read_github_issue", "search_community", "build_answer"],
+            ["classify_request", "run_issue_rag", "search_community", "build_answer"],
         )
         for state in states:
             self.assertEqual(state["executed_nodes"][0], "classify_request")
