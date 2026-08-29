@@ -1,9 +1,8 @@
 """Final project: route-aware SuppBro LangGraph workflow.
 
-This module keeps the HW7 graph shape, but improves one weak point:
-explicit GitHub issue metadata questions go directly to the GitHub tool
-instead of running local issue RAG first. Community workaround search is modeled
-as an optional augmentation after known issue investigation.
+This module keeps the HW7 graph shape, but improves answer composition:
+retrieval and tools collect evidence first, then a final synthesis step can use
+the model to combine local context, live issue state, and community signals.
 """
 
 from __future__ import annotations
@@ -57,10 +56,10 @@ DEFAULT_DEMO_CASES = [
         "issue_number": None,
     },
     {
-        "name": "explicit GitHub issue metadata",
-        "question": "Is Debezium issue #3 still open and who worked on it?",
-        "allow_external_community_search": False,
-        "issue_number": 3,
+        "name": "known issue with community workaround",
+        "question": "What should I do if Debezium MongoDB says unable to acquire buffer lock?",
+        "allow_external_community_search": True,
+        "issue_number": None,
     },
     {
         "name": "known issue with community signal",
@@ -98,6 +97,7 @@ class AgentState(TypedDict, total=False):
     rag_calls: list[dict[str, Any]]
     retrieved_context: dict[str, Any]
     external_tool_results: list[dict[str, Any]]
+    synthesis_calls: list[dict[str, Any]]
     requires_clarification: bool
     fallback_used: bool
     final_answer: str
@@ -258,7 +258,7 @@ def route_after_issue_rag(state: AgentState) -> str:
 def route_after_github_issue(state: AgentState) -> str:
     if state.get("search_community_after_issue"):
         return "search_community"
-    return "build_answer"
+    return "synthesize_answer"
 
 
 def run_docs_rag(state: AgentState) -> AgentState:
@@ -358,14 +358,75 @@ def build_stackoverflow_query(question: str) -> str:
     return text or question
 
 
-def build_answer(state: AgentState) -> AgentState:
-    append_node(state, "build_answer")
-    state["final_answer"] = answer_from_state(state)
+def synthesize_answer(state: AgentState) -> AgentState:
+    append_node(state, "synthesize_answer")
+    state["final_answer"] = synthesize_answer_from_state(state)
     complete_step(state, "compose_answer", "Final answer created from LangGraph state.")
     return state
 
 
-def answer_from_state(state: AgentState) -> str:
+def synthesize_answer_from_state(state: AgentState) -> str:
+    if should_use_model_synthesis(state):
+        synthesized = synthesize_with_model(state)
+        if synthesized:
+            return synthesized
+    return deterministic_answer_from_state(state)
+
+
+def should_use_model_synthesis(state: AgentState) -> bool:
+    return state["selected_route"] in {"issue_investigation", "community_lookup"} and bool(os.getenv("OPENAI_API_KEY"))
+
+
+def synthesize_with_model(state: AgentState) -> str | None:
+    try:
+        from openai import OpenAI
+    except ImportError:
+        state.setdefault("synthesis_calls", []).append(
+            {"success": False, "status": "openai_sdk_unavailable", "error": "openai package is not installed"}
+        )
+        return None
+
+    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    prompt = build_synthesis_prompt(state)
+    try:
+        response = OpenAI(api_key=os.environ["OPENAI_API_KEY"]).responses.create(
+            model=model,
+            input=prompt,
+            temperature=0.2,
+        )
+    except Exception as exc:  # pragma: no cover - depends on external API/network
+        state.setdefault("synthesis_calls", []).append({"success": False, "status": "model_error", "error": str(exc)})
+        return None
+
+    answer = getattr(response, "output_text", "").strip()
+    state.setdefault("synthesis_calls", []).append({"success": bool(answer), "status": "model_synthesis", "model": model})
+    return answer or None
+
+
+def build_synthesis_prompt(state: AgentState) -> str:
+    evidence = {
+        "user_question": state["user_goal"],
+        "selected_route": state["selected_route"],
+        "route_reason": state["route_reason"],
+        "rag_calls": state.get("rag_calls", []),
+        "tool_results": state.get("external_tool_results", []),
+    }
+    return "\n".join(
+        [
+            "You are SuppBro, a technical support assistant for Debezium questions.",
+            "Use only the evidence JSON below. Do not invent facts.",
+            "Separate local/project evidence from GitHub live metadata and Stack Overflow/community hints.",
+            "If a workaround is only from community results, label it as a community workaround.",
+            "If evidence is insufficient, say what is missing and what the user should check next.",
+            "Answer concisely and include relevant URLs from the evidence.",
+            "",
+            "Evidence JSON:",
+            json.dumps(evidence, indent=2, ensure_ascii=False),
+        ]
+    )
+
+
+def deterministic_answer_from_state(state: AgentState) -> str:
     route = state["selected_route"]
     rag = state.get("rag_calls", [])[-1] if state.get("rag_calls") else None
     tool_results = state.get("external_tool_results", [])
@@ -445,7 +506,7 @@ def create_graph():
     workflow.add_node("read_github_issue", read_github_issue)
     workflow.add_node("search_community", search_community)
     workflow.add_node("ask_clarification", ask_clarification)
-    workflow.add_node("build_answer", build_answer)
+    workflow.add_node("synthesize_answer", synthesize_answer)
 
     workflow.set_entry_point("classify_request")
     workflow.add_conditional_edges(
@@ -459,7 +520,7 @@ def create_graph():
             "clarification": "ask_clarification",
         },
     )
-    workflow.add_edge("run_docs_rag", "build_answer")
+    workflow.add_edge("run_docs_rag", "synthesize_answer")
     workflow.add_conditional_edges(
         "run_issue_rag",
         route_after_issue_rag,
@@ -474,12 +535,12 @@ def create_graph():
         route_after_github_issue,
         {
             "search_community": "search_community",
-            "build_answer": "build_answer",
+            "synthesize_answer": "synthesize_answer",
         },
     )
-    workflow.add_edge("search_community", "build_answer")
-    workflow.add_edge("ask_clarification", "build_answer")
-    workflow.add_edge("build_answer", END)
+    workflow.add_edge("search_community", "synthesize_answer")
+    workflow.add_edge("ask_clarification", "synthesize_answer")
+    workflow.add_edge("synthesize_answer", END)
     return workflow.compile()
 
 
@@ -511,6 +572,7 @@ def initial_state(
         "rag_calls": [],
         "retrieved_context": {},
         "external_tool_results": [],
+        "synthesis_calls": [],
         "requires_clarification": False,
         "fallback_used": False,
         "final_answer": "",

@@ -56,23 +56,31 @@ class LangGraphWorkflowTest(unittest.TestCase):
         )
 
     def run_case(self, question: str, **kwargs):
-        with patch("langgraph_flow.execute_tool_request", side_effect=self.fake_tool):
+        with (
+            patch("langgraph_flow.execute_tool_request", side_effect=self.fake_tool),
+            patch("langgraph_flow.should_use_model_synthesis", return_value=False),
+        ):
             return langgraph_flow.run_langgraph_workflow(question, enable_rag=False, **kwargs)
 
     def test_docs_question_routes_through_docs_rag_node(self) -> None:
         state = self.run_case("Can I get exactly once delivery?")
         self.assertEqual(state["selected_route"], "docs_answer")
-        self.assertEqual(state["executed_nodes"], ["classify_request", "run_docs_rag", "build_answer"])
+        self.assertEqual(state["executed_nodes"], ["classify_request", "run_docs_rag", "synthesize_answer"])
         self.assertEqual(state["rag_calls"][0]["status"], "rag_disabled")
 
-    def test_explicit_issue_metadata_question_skips_rag_and_uses_github_tool(self) -> None:
-        state = self.run_case("Is Debezium issue #3 still open and who worked on it?", issue_number=3)
+    def test_known_error_with_mapping_uses_rag_github_and_community(self) -> None:
+        state = self.run_case(
+            "What should I do if Debezium MongoDB says unable to acquire buffer lock?",
+            allow_external_community_search=True,
+        )
         self.assertEqual(state["selected_route"], "issue_investigation")
-        self.assertEqual(state["executed_nodes"], ["classify_request", "read_github_issue", "build_answer"])
-        self.assertTrue(state["skip_issue_rag"])
-        self.assertEqual(state["rag_calls"], [])
+        self.assertEqual(
+            state["executed_nodes"],
+            ["classify_request", "run_issue_rag", "read_github_issue", "search_community", "synthesize_answer"],
+        )
+        self.assertFalse(state["skip_issue_rag"])
         self.assertEqual(state["tool_calls"][0]["tool_name"], "get_github_issue_context")
-        self.assertIn("Live GitHub issue", state["final_answer"])
+        self.assertEqual(state["tool_calls"][1]["tool_name"], "search_stackoverflow_questions")
 
     def test_known_error_still_uses_rag_then_github_tool(self) -> None:
         state = self.run_case("Backpressure error says unable to acquire buffer lock and queue is full")
@@ -94,7 +102,7 @@ class LangGraphWorkflowTest(unittest.TestCase):
         self.assertTrue(state["search_community_after_issue"])
         self.assertEqual(
             state["executed_nodes"],
-            ["classify_request", "run_issue_rag", "search_community", "build_answer"],
+            ["classify_request", "run_issue_rag", "search_community", "synthesize_answer"],
         )
         self.assertEqual(
             [call["tool_name"] for call in state["tool_calls"]],
@@ -111,6 +119,17 @@ class LangGraphWorkflowTest(unittest.TestCase):
             "How to fix Debezium MongoDB buffer lock? Include possible community workarounds."
         )
         self.assertEqual(query, "Debezium MongoDB buffer lock")
+
+    def test_synthesis_prompt_includes_all_evidence(self) -> None:
+        state = self.run_case(
+            "What should I do if Debezium MongoDB says unable to acquire buffer lock?",
+            allow_external_community_search=True,
+        )
+        prompt = langgraph_flow.build_synthesis_prompt(state)
+        self.assertIn("rag_calls", prompt)
+        self.assertIn("tool_results", prompt)
+        self.assertIn("get_github_issue_context", prompt)
+        self.assertIn("search_stackoverflow_questions", prompt)
 
     def test_all_five_demo_cases_have_routes_and_nodes(self) -> None:
         with patch("langgraph_flow.execute_tool_request", side_effect=self.fake_tool):
@@ -130,11 +149,11 @@ class LangGraphWorkflowTest(unittest.TestCase):
         )
         self.assertEqual(
             states[3]["executed_nodes"],
-            ["classify_request", "run_issue_rag", "search_community", "build_answer"],
+            ["classify_request", "run_issue_rag", "search_community", "synthesize_answer"],
         )
         for state in states:
             self.assertEqual(state["executed_nodes"][0], "classify_request")
-            self.assertEqual(state["executed_nodes"][-1], "build_answer")
+            self.assertEqual(state["executed_nodes"][-1], "synthesize_answer")
 
 
 if __name__ == "__main__":

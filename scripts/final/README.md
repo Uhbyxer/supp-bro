@@ -1,6 +1,6 @@
 # Final project: route-aware SuppBro workflow
 
-Ця папка містить final project workflow. Він базується на HW7 `LangGraph` implementation, але лежить окремо від homework-папок і додає точкове покращення routing: explicit GitHub issue metadata questions пропускають local issue RAG і йдуть прямо в GitHub tool. Workaround/community questions для known issue проходять через local issue context та GitHub перед Stack Overflow/community search.
+Ця папка містить final project workflow. Він базується на HW7 `LangGraph` implementation, але лежить окремо від homework-папок і додає головне final-project покращення: workflow спочатку збирає evidence з local RAG, GitHub і Stack Overflow/community, а потім окремий `synthesize_answer` step може викликати модель для фінальної відповіді.
 
 ## Як Запускати
 
@@ -8,8 +8,8 @@
 
 ```bash
 python scripts/final/langgraph_flow.py \
-  "Is Debezium issue #3 still open and who worked on it?" \
-  --issue-number 3 \
+  "What should I do if Debezium MongoDB says unable to acquire buffer lock?" \
+  --allow-external-community-search \
   --output-json final-langgraph-result.json \
   --output-md final-langgraph-summary.md
 ```
@@ -52,7 +52,7 @@ Built-in demo mode проганяє п'ять questions, які показуют
 |---:|---|---|
 | 1 | `Can I get exactly once delivery with Debezium?` | `docs_answer`: documentation RAG. |
 | 2 | `Explain the known Debezium MongoDB buffer lock problem from the local context.` | `issue_investigation`: local issue RAG + GitHub tool. |
-| 3 | `Is Debezium issue #3 still open and who worked on it?` | Final improvement: skip RAG і direct GitHub tool. |
+| 3 | `What should I do if Debezium MongoDB says unable to acquire buffer lock?` | Main final improvement: local RAG + GitHub tool + community check + final synthesis. |
 | 4 | `Debezium Mysql Connector Failed with IllegalStateException for history topic` | `issue_investigation`: troubleshooting question + local issue RAG + clean Stack Overflow query. |
 | 5 | `Help with Debezium` | `clarification`: уточнення замість випадкового RAG. |
 
@@ -79,14 +79,14 @@ flowchart TD
   IR -->|known issue number or mapping| GH
   IR -->|community signal only| SO
   CR --> SO["search_community"]
-  DR --> A["build_answer"]
+  DR --> A["synthesize_answer"]
   GH -->|community workaround requested| SO
   GH -->|otherwise| A
   SO --> A
   AQ --> A
 ```
 
-Ключова final-project гілка тут: `issue_investigation + metadata`. Якщо користувач питає про конкретний issue number і live metadata, workflow пропускає `run_issue_rag` і одразу викликає GitHub tool.
+Ключова final-project гілка тут: `synthesize_answer`. RAG і tools тепер не намагаються самі бути фінальною відповіддю. Вони збирають evidence, а фінальний step формує support answer з урахуванням local context, project metadata і community hints.
 
 Друга важлива гілка: `issue_investigation + community signal`. Якщо користувач питає про troubleshooting error, workflow спочатку дивиться local issue context. Якщо питання має конкретний issue number або відому локальну евристику, workflow також додає GitHub metadata. Після цього він може додати Stack Overflow/community signal.
 
@@ -244,61 +244,78 @@ RRF score = 1 / (k + dense_rank) + 1 / (k + bm25_rank)
 
 ## Final Improvement
 
-### Weak Point 1 Before
+### Weak Point Before
 
-HW7 workflow правильно route-ив explicit GitHub issue questions у `issue_investigation`, але завжди запускав local issue RAG перед GitHub tool.
+До final step workflow збирав correct evidence, але фінальна відповідь була просто Python string assembly.
 
-Наприклад:
-
-```text
-Question: Is Debezium issue #3 still open and who worked on it?
-Before:   classify_request -> run_issue_rag -> read_github_issue -> build_answer
-RAG:      model_fallback
-Tool:     get_github_issue_context success
-```
-
-Це працювало, але не ідеально. Питання просить live issue metadata: state, assignees, labels, participants, comments, updated date і URL. Local RAG не є найкращим джерелом для таких даних, бо він може бути stale або incomplete. Запуск RAG перед GitHub tool додавав очікуваний fallback у trace і робив workflow шумнішим.
-
-### Improvement 1 After
-
-Final workflow визначає explicit GitHub issue metadata questions і пропускає local issue RAG для цієї гілки.
+Наприклад для troubleshooting question:
 
 ```text
-Question: Is Debezium issue #3 still open and who worked on it?
-After:    classify_request -> read_github_issue -> build_answer
-RAG:      not_called
-Tool:     get_github_issue_context success
+Question: What should I do if Debezium MongoDB says unable to acquire buffer lock?
+Before:   classify_request -> run_issue_rag -> read_github_issue -> search_community -> build_answer
+Answer:   Local RAG sentence + GitHub metadata sentence + Stack Overflow sentence
 ```
 
-Workflow все ще використовує RAG для issue-like error questions, де потрібен local context перед перевіркою related GitHub issue.
+Це корисно для trace, але не дуже схоже на реального support assistant-а. Він не аналізував разом local context, GitHub state і community workaround-и. Він просто додавав їх один за одним.
+
+### Improvement After
+
+Final workflow тепер має окремий synthesis step:
 
 ```text
-Question: Backpressure error says unable to acquire buffer lock and queue is full
-After:    classify_request -> run_issue_rag -> read_github_issue -> build_answer
-RAG:      called
-Tool:     get_github_issue_context success
+Question: What should I do if Debezium MongoDB says unable to acquire buffer lock?
+After:    classify_request -> run_issue_rag -> read_github_issue -> search_community -> synthesize_answer
 ```
 
-### Detection Rule
+Тобто модель може викликатися двічі:
 
-Workflow пропускає issue RAG тільки коли одночасно виконуються дві умови:
+| Model call | Де | Для чого |
+|---|---|---|
+| 1 | `run_issue_rag` або `run_docs_rag` | Відповісти тільки з local retrieved context або чесно сказати, що context недостатній. |
+| 2 | `synthesize_answer` | Зібрати фінальну support answer з RAG result, GitHub metadata і Stack Overflow/community results. |
 
-- користувач дає explicit issue number у question або через `--issue-number`;
-- question питає про live metadata: status, open/closed state, assignees, labels, participants, comments, updates або who worked on the issue.
+`synthesize_answer` отримує structured evidence:
 
-Це тримає improvement вузьким: exact issue metadata йде прямо в live tool, а broader issue investigation все ще може комбінувати local RAG context із GitHub metadata.
+```json
+{
+  "user_question": "...",
+  "selected_route": "issue_investigation",
+  "route_reason": "...",
+  "rag_calls": ["local RAG observations"],
+  "tool_results": ["GitHub and Stack Overflow observations"]
+}
+```
 
-### Community Workaround Flow
+Prompt просить модель:
 
-Final workflow трактує troubleshooting question як `issue_investigation`, а Stack Overflow додає після local issue context. GitHub metadata додається тоді, коли workflow має concrete issue number або відому евристику для цього error.
+- відповідати тільки з provided evidence;
+- відділяти local/project evidence від GitHub metadata і community hints;
+- позначати workaround як community workaround, якщо він прийшов тільки зі Stack Overflow;
+- чесно сказати, якщо evidence недостатній;
+- включати релевантні URLs з observations.
+
+Якщо `OPENAI_API_KEY` недоступний або model call падає, workflow не ламається: він fallback-иться до попередньої deterministic answer assembly. Це потрібно, щоб demo mode і GitHub Actions могли працювати без live model credentials.
+
+### Realistic Demo Questions
+
+Final demo більше не робить центральним artificial issue metadata question, бо реальні користувачі частіше описують symptom або error. Замість цього воно показує support-style questions:
 
 ```text
-Question: Debezium Mysql Connector Failed with IllegalStateException for history topic
-After:    classify_request -> run_issue_rag -> search_community -> build_answer
-Route:    issue_investigation
+What should I do if Debezium MongoDB says unable to acquire buffer lock?
+Debezium Mysql Connector Failed with IllegalStateException for history topic
 ```
 
-Це стандартний шлях для такого питання: спочатку grounded local/project context, потім project metadata, якщо доступна, і лише потім community results як допоміжний evidence source.
+Перший case має known local mapping на GitHub issue і може пройти:
+
+```text
+classify_request -> run_issue_rag -> read_github_issue -> search_community -> synthesize_answer
+```
+
+Другий case не має exact GitHub issue number/mapping, тому не викликає зайвий GitHub clarification tool і йде так:
+
+```text
+classify_request -> run_issue_rag -> search_community -> synthesize_answer
+```
 
 ## Verification
 
@@ -314,15 +331,14 @@ python -m unittest scripts/final/test_langgraph_flow.py
 python scripts/final/langgraph_flow.py --mode demo --disable-rag
 ```
 
-Explicit issue metadata case має показати:
+Known issue with community workaround case має показати:
 
 ```text
-classify_request -> read_github_issue -> build_answer
-RAG status: not_called
+classify_request -> run_issue_rag -> read_github_issue -> search_community -> synthesize_answer
 ```
 
-Known issue with community signal case має показати:
+Troubleshooting Stack Overflow case має показати:
 
 ```text
-classify_request -> run_issue_rag -> search_community -> build_answer
+classify_request -> run_issue_rag -> search_community -> synthesize_answer
 ```

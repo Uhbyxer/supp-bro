@@ -58,6 +58,14 @@ def render_tools(state_payload: dict) -> None:
     st.json(results)
 
 
+def render_synthesis(state_payload: dict) -> None:
+    calls = state_payload.get("synthesis_calls", [])
+    if not calls:
+        st.info("Model synthesis was not called; final answer used deterministic fallback.")
+        return
+    st.json(calls)
+
+
 def main() -> None:
     st.set_page_config(page_title="SuppBro Final", layout="wide")
     init_state()
@@ -117,7 +125,7 @@ def main() -> None:
         st.write("Executed LangGraph nodes")
         st.code(" -> ".join(state_payload.get("executed_nodes", [])), language="text")
 
-    tab_plan, tab_rag, tab_tools, tab_state = st.tabs(["Plan trace", "RAG", "Tools", "State JSON"])
+    tab_plan, tab_rag, tab_tools, tab_synthesis, tab_state = st.tabs(["Plan trace", "RAG", "Tools", "Synthesis", "State JSON"])
     with tab_plan:
         render_plan(state_payload)
         st.write("Observations")
@@ -126,6 +134,8 @@ def main() -> None:
         render_rag(state_payload)
     with tab_tools:
         render_tools(state_payload)
+    with tab_synthesis:
+        render_synthesis(state_payload)
     with tab_state:
         st.code(json.dumps(state_payload, indent=2, ensure_ascii=False), language="json")
 
