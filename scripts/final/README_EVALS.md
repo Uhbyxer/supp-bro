@@ -43,7 +43,7 @@ Deterministic evaluator `scripts/final/evals/run_workflow_eval.py`:
 - запускає final LangGraph workflow з `enable_rag=True`;
 - збирає детальну таблицю по всіх test cases;
 - перевіряє route/tools/fallback/clarification поведінку;
-- готує `ragas_input.json` тільки для cases, де очікується grounded answer.
+- не готує input і не запускає RAGAS.
 
 GitHub Actions job summary містить тільки deterministic test-case table. Action не запускає RAGAS і не публікує `eval_ragas_results.csv` як artifact.
 
@@ -52,22 +52,30 @@ GitHub Actions job summary містить тільки deterministic test-case t
 ```text
 scripts/final/outputs/eval_workflow_results.csv
 scripts/final/outputs/eval_summary.md
-scripts/final/outputs/ragas_input.json
 ```
 
 ## Local RAGAS Eval
 
-RAGAS запускається локально окремо:
+RAGAS є окремим локальним flow:
 
 ```text
 make final-ragas-eval
 ```
 
-Він читає `scripts/final/outputs/ragas_input.json` і записує:
+`run_ragas_eval.py` сам:
+
+- читає `scripts/final/evals/eval_cases.json`;
+- вибирає grounded-answer cases (`expected_route != clarification`);
+- запускає final LangGraph workflow для цих cases з `enable_rag=True`;
+- збирає фактичні answers, RAG contexts і external-tool evidence;
+- запускає RAGAS поверх цих даних;
+- записує результат у:
 
 ```text
 scripts/final/outputs/eval_ragas_results.csv
 ```
+
+Проміжний `ragas_input.json` більше не потрібен. Deterministic і RAGAS eval-и незалежні та кожен сам запускає workflow для своїх cases.
 
 Результат локального RAGAS run можна закомітити в репозиторій як зафіксований evaluation result. RAGAS не запускається у GitHub Actions через нестабільну/повільну поведінку LLM-as-judge calls у hosted runner.
 
@@ -80,13 +88,13 @@ RAGAS потребує `OPENAI_API_KEY`.
 ```text
 make final-workflow-eval
 make final-ragas-eval
-make final-evals
 ```
 
-`make final-evals` локально послідовно запускає повний deterministic workflow eval, а потім RAGAS для grounded-answer cases. За потреби можна змінити тільки retrieval threshold:
+Це дві незалежні команди. За потреби обидві приймають однаковий retrieval threshold:
 
 ```text
 make final-workflow-eval MIN_VECTOR_SCORE=0.30
+make final-ragas-eval MIN_VECTOR_SCORE=0.30
 ```
 
 ## Eval Set
@@ -105,7 +113,7 @@ make final-workflow-eval MIN_VECTOR_SCORE=0.30
 | 8 | Documentation RAG про schema history storage. | Deterministic + RAGAS |
 | 9 | Ambiguous paraphrase that can break deterministic routing. | Deterministic only |
 
-RAGAS selection is semantic rather than hardcoded by case ID: cases with `expected_route == clarification` are excluded from `ragas_input.json`. Це дозволяє deterministic eval перевіряти conversational control behavior, не штрафуючи правильні clarification/fallback responses метриками, розрахованими на substantive grounded answers.
+RAGAS selection is semantic rather than hardcoded by case ID: cases with `expected_route == clarification` are excluded. Це дозволяє deterministic eval перевіряти conversational control behavior, не штрафуючи правильні clarification/fallback responses метриками, розрахованими на substantive grounded answers.
 
 ## Metrics
 
@@ -118,7 +126,7 @@ unexpected clarification did not happen
 answer is not empty
 ```
 
-RAGAS eval оцінює answer quality поверх уже зібраного evidence для grounded-answer cases. Для tool-augmented cases у contexts передаються не тільки RAG chunks, а й GitHub/Stack Overflow observations, щоб judge бачив повний evidence.
+RAGAS eval оцінює answer quality поверх evidence, який він сам збирає у власному локальному workflow run. Для tool-augmented cases у contexts передаються не тільки RAG chunks, а й GitHub/Stack Overflow observations, щоб judge бачив повний evidence.
 
 Ці два eval-и доповнюють один одного: deterministic evaluation ловить orchestration/routing regressions, а RAGAS — answer-quality проблеми, які можуть залишатися невидимими навіть коли route і tools вибрані правильно.
 
