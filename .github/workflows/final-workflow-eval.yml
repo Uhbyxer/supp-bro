@@ -51,7 +51,12 @@ jobs:
 
       - name: Install optional RAGAS dependencies
         if: ${{ inputs.run_ragas }}
-        run: pip install "ragas==0.4.3" "datasets==5.0.1" "langchain-openai==1.1.9"
+        run: |
+          pip install \
+            "ragas==0.4.3" \
+            "datasets==5.0.1" \
+            "langchain-openai==1.1.9" \
+            "langchain-google-vertexai>=2.0.0"
 
       - name: Run optional RAGAS eval
         if: ${{ inputs.run_ragas }}
