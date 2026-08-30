@@ -8,7 +8,7 @@
 |---|---|---|
 | Retrieval eval | Чи Pinecone dense search + local BM25 + RRF знаходять правильні chunks. | `scripts/final/outputs/eval_retrieval_results.md` |
 | Workflow regression eval | Чи final chatbot вибирає правильний route, викликає потрібні tools, коректно fallback-иться або питає clarification. | `scripts/final/outputs/eval_workflow_results.csv` |
-| Optional RAGAS eval | Чи final answer grounded і relevant до question/evidence. | `scripts/final/outputs/eval_ragas_results.csv` |
+| RAGAS eval | Чи final answer grounded і relevant до question/evidence. | `scripts/final/outputs/eval_ragas_results.csv` |
 
 ## Manual GitHub Actions
 
@@ -33,13 +33,24 @@ scripts/final/outputs/eval_retrieval_results.md
 Actions -> Final Workflow Eval -> Run workflow
 ```
 
-Цей action запускає `scripts/final/evals/run_workflow_eval.py`, який:
+Один запуск завжди виконує два етапи послідовно:
+
+1. deterministic workflow regression eval;
+2. RAGAS LLM-as-judge eval поверх результатів цього ж запуску.
+
+`run_ragas` input більше немає — RAGAS не optional.
+
+Workflow використовує один `pip install -r requirements.txt`; RAGAS dependencies є частиною project requirements.
+
+Deterministic evaluator `scripts/final/evals/run_workflow_eval.py`:
 
 - читає `scripts/final/evals/eval_cases.json`;
 - запускає final LangGraph workflow;
-- збирає HW8-style eval table;
+- збирає детальну таблицю по test cases;
 - рахує deterministic observability metrics;
-- готує `ragas_input.json` для optional RAGAS pass.
+- готує `ragas_input.json`.
+
+Після нього `scripts/final/evals/run_ragas_eval.py` завжди запускає RAGAS і записує per-case metrics.
 
 Основні outputs:
 
@@ -47,17 +58,29 @@ Actions -> Final Workflow Eval -> Run workflow
 scripts/final/outputs/eval_workflow_results.csv
 scripts/final/outputs/eval_summary.md
 scripts/final/outputs/ragas_input.json
+scripts/final/outputs/eval_ragas_results.csv
 ```
 
-Якщо при ручному запуску `run_ragas=true`, action додатково встановлює RAGAS і запускає:
+RAGAS потребує `OPENAI_API_KEY`. Якщо ключа або dependency немає, eval завершується помилкою замість тихого `skipped`, щоб GitHub Action не виглядав успішним без реального RAGAS evaluation.
+
+GitHub Actions job summary містить дві детальні таблиці поточного запуску: deterministic test cases і RAGAS metrics по кожному test case. Описові висновки та рекомендації зберігаються тут у README, а не дублюються в кожному run.
+
+## Local Commands
+
+Після `make setup`:
 
 ```text
-scripts/final/evals/run_ragas_eval.py
+make final-workflow-eval
+make final-ragas-eval
+make final-evals
 ```
 
-RAGAS step потребує `OPENAI_API_KEY`. Якщо ключа немає, step записує skipped report і не ламає весь eval run.
+`make final-evals` послідовно запускає deterministic evaluator, а потім RAGAS. Для deterministic evaluator можна передати:
 
-GitHub Actions job summary навмисно містить тільки дві таблиці з конкретними метриками поточного запуску: deterministic workflow metrics і RAGAS metrics. Описові висновки та рекомендації зберігаються тут у README, а не дублюються в кожному run.
+```text
+make final-workflow-eval MIN_VECTOR_SCORE=0.30
+make final-workflow-eval DISABLE_RAG=true
+```
 
 ## Eval Set
 
@@ -77,15 +100,7 @@ GitHub Actions job summary навмисно містить тільки дві �
 
 ## Metrics
 
-Workflow regression eval рахує:
-
-- `total_cases`;
-- `success_rate`;
-- `groundedness_good_rate`;
-- `average_latency_ms`;
-- `top_error_types`.
-
-Це cheap deterministic checks. Вони не викликають LLM judge і не потребують RAGAS. Їхня задача — ловити regression у behavior:
+Workflow regression eval використовує cheap deterministic checks. Вони не викликають LLM judge; їхня задача — ловити regression у behavior:
 
 ```text
 expected_route == actual_route
@@ -94,7 +109,7 @@ unexpected clarification did not happen
 answer is not empty
 ```
 
-RAGAS eval інший: він оцінює answer quality поверх уже зібраного evidence. Для tool-augmented cases у contexts передаються не тільки RAG chunks, а й GitHub/Stack Overflow observations, щоб judge бачив повний evidence.
+RAGAS eval оцінює answer quality поверх уже зібраного evidence. Для tool-augmented cases у contexts передаються не тільки RAG chunks, а й GitHub/Stack Overflow observations, щоб judge бачив повний evidence.
 
 ## Quality Conclusions
 
