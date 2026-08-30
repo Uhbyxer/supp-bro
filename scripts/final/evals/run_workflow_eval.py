@@ -1,4 +1,4 @@
-"""Run HW8-style evaluation for the final SuppBro workflow."""
+"""Run full-flow evaluation for the final SuppBro workflow."""
 
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ def error_types(case: dict[str, Any], state: dict[str, Any]) -> list[str]:
     for rag_call in state.get("rag_calls", []):
         status = rag_call.get("status")
         fallback_reason = rag_call.get("fallback_reason")
-        if status in {"filter_fallback", "model_fallback", "rag_disabled"}:
+        if status in {"filter_fallback", "model_fallback"}:
             errors.append(fallback_reason or status)
     if state.get("fallback_used") and not errors:
         errors.append("fallback_used")
@@ -137,8 +137,6 @@ def run_case(case: dict[str, Any], min_vector_score: float) -> dict[str, Any]:
         "latency_ms": latency_ms,
         "errors": "; ".join(errors),
         "notes": f"Expected route: {case.get('expected_route')}; actual route: {state.get('selected_route')}",
-        "state": state,
-        "ground_truth": case.get("ground_truth", ""),
     }
 
 
@@ -152,8 +150,7 @@ def write_csv(rows: list[dict[str, Any]], path: Path) -> None:
     with path.open("w", newline="", encoding="utf-8") as target:
         writer = csv.DictWriter(target, fieldnames=fieldnames)
         writer.writeheader()
-        for row in rows:
-            writer.writerow({key: row[key] for key in fieldnames})
+        writer.writerows(rows)
 
 
 def md(value: Any) -> str:
@@ -186,32 +183,8 @@ def write_summary(rows: list[dict[str, Any]], path: Path) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def write_ragas_input(rows: list[dict[str, Any]], path: Path) -> None:
-    payload = []
-    for row in rows:
-        if row["expected_route"] == "clarification":
-            continue
-        state = row["state"]
-        contexts: list[str] = []
-        for rag_call in state.get("rag_calls", []):
-            for context in (rag_call.get("retrieved_context_by_id") or {}).values():
-                if isinstance(context, str):
-                    contexts.append(context)
-                elif isinstance(context, dict) and isinstance(context.get("text"), str):
-                    contexts.append(context["text"])
-                else:
-                    contexts.append(json.dumps(context, ensure_ascii=False))
-        for tool_result in state.get("external_tool_results", []):
-            contexts.append(json.dumps(tool_result, ensure_ascii=False))
-        payload.append({
-            "id": row["id"], "question": row["question"], "answer": row["answer"],
-            "contexts": contexts[:5], "ground_truth": row["ground_truth"],
-        })
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-
-
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run final SuppBro workflow evals.")
+    parser = argparse.ArgumentParser(description="Run final SuppBro deterministic workflow evals.")
     parser.add_argument("--cases", type=Path, default=DEFAULT_CASES_PATH)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--min-vector-score", type=float, default=0.30)
@@ -224,7 +197,6 @@ def main() -> None:
     rows = [run_case(case, args.min_vector_score) for case in load_cases(args.cases)]
     write_csv(rows, args.output_dir / "eval_workflow_results.csv")
     write_summary(rows, args.output_dir / "eval_summary.md")
-    write_ragas_input(rows, args.output_dir / "ragas_input.json")
     print((args.output_dir / "eval_summary.md").read_text(encoding="utf-8"))
 
 
