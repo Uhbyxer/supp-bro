@@ -1,0 +1,77 @@
+name: Final Workflow Eval
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_ragas:
+        description: "Run optional RAGAS LLM-as-judge eval"
+        required: true
+        default: false
+        type: boolean
+      disable_rag:
+        description: "Disable local RAG for smoke/debug runs"
+        required: true
+        default: false
+        type: boolean
+      min_vector_score:
+        description: "Minimum vector score passed to final RAG calls"
+        required: true
+        default: "0.30"
+        type: string
+
+jobs:
+  workflow-eval:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run final workflow regression eval
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          PINECONE_INDEX: ${{ vars.PINECONE_INDEX || 'supp-bro' }}
+          PINECONE_NAMESPACE: ${{ vars.PINECONE_NAMESPACE || 'hw3-pinecone-vector' }}
+        run: |
+          args=(--min-vector-score "${{ inputs.min_vector_score }}")
+          if [ "${{ inputs.disable_rag }}" = "true" ]; then
+            args+=(--disable-rag)
+          fi
+          python scripts/final/evals/run_workflow_eval.py "${args[@]}"
+
+      - name: Install optional RAGAS dependencies
+        if: ${{ inputs.run_ragas }}
+        run: pip install ragas datasets
+
+      - name: Run optional RAGAS eval
+        if: ${{ inputs.run_ragas }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python scripts/final/evals/run_ragas_eval.py
+
+      - name: Add reports to job summary
+        if: always()
+        run: |
+          for report in scripts/final/outputs/eval_summary.md scripts/final/outputs/quality_report.md; do
+            if [ -f "$report" ]; then
+              cat "$report" >> "$GITHUB_STEP_SUMMARY"
+              printf '\n\n' >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+      - name: Upload final workflow eval outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-workflow-eval
+          path: scripts/final/outputs/

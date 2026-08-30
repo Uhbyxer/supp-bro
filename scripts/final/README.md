@@ -44,6 +44,8 @@ GitHub Actions demo:
 Actions -> Run Final LangGraph Workflow -> Run workflow
 ```
 
+Evaluation для final project описаний окремо в [README_EVALS.md](README_EVALS.md). Там є два manual GitHub Actions: retrieval eval для RAG якості і workflow eval для route/tool/fallback behavior з optional RAGAS pass.
+
 ## Demo Cases
 
 Built-in demo mode проганяє п'ять questions, які показують різні гілки workflow:
