@@ -192,7 +192,13 @@ def write_ragas_input(rows: list[dict[str, Any]], path: Path) -> None:
         state = row["state"]
         contexts: list[str] = []
         for rag_call in state.get("rag_calls", []):
-            contexts.extend((rag_call.get("retrieved_context_by_id") or {}).values())
+            for context in (rag_call.get("retrieved_context_by_id") or {}).values():
+                if isinstance(context, str):
+                    contexts.append(context)
+                elif isinstance(context, dict) and isinstance(context.get("text"), str):
+                    contexts.append(context["text"])
+                else:
+                    contexts.append(json.dumps(context, ensure_ascii=False))
         for tool_result in state.get("external_tool_results", []):
             contexts.append(json.dumps(tool_result, ensure_ascii=False))
         payload.append({

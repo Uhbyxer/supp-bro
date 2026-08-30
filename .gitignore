@@ -3,3 +3,4 @@ __pycache__/
 *.py[cod]
 /.idea/misc.xml
 .env
+/scripts/final/outputs/eval_ragas_results.csv

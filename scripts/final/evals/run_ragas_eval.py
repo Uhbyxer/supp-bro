@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import sys
+import types
 from pathlib import Path
 from typing import Any
 
@@ -22,8 +23,36 @@ if load_dotenv is not None:
     load_dotenv(PROJECT_ROOT / ".env")
 
 
-def compact_contexts(contexts: list[str], max_contexts: int, max_chars: int) -> list[str]:
-    return [context[:max_chars] for context in contexts[:max_contexts] if context]
+def ensure_ragas_langchain_compat() -> None:
+    """Shim removed LangChain modules that ragas 0.3.9 still imports."""
+    module_name = "langchain_community.chat_models.vertexai"
+    if module_name in sys.modules:
+        return
+    try:
+        __import__(module_name)
+    except ModuleNotFoundError:
+        shim = types.ModuleType(module_name)
+
+        class ChatVertexAI:  # pragma: no cover - compatibility shim only
+            pass
+
+        shim.ChatVertexAI = ChatVertexAI
+        sys.modules[module_name] = shim
+
+
+def normalize_context(context: Any) -> str:
+    if isinstance(context, str):
+        return context
+    if isinstance(context, dict):
+        if isinstance(context.get("text"), str):
+            return context["text"]
+        return json.dumps(context, ensure_ascii=False)
+    return str(context)
+
+
+def compact_contexts(contexts: list[Any], max_contexts: int, max_chars: int) -> list[str]:
+    normalized = [normalize_context(context) for context in contexts[:max_contexts]]
+    return [context[:max_chars] for context in normalized if context]
 
 
 def load_rows(path: Path, max_contexts: int, max_chars: int) -> list[dict[str, Any]]:
@@ -46,6 +75,8 @@ def main() -> None:
     args = parse_args()
     if not os.getenv("OPENAI_API_KEY"):
         raise RuntimeError("OPENAI_API_KEY is not configured")
+
+    ensure_ragas_langchain_compat()
 
     from datasets import Dataset
     from langchain_openai import ChatOpenAI, OpenAIEmbeddings
