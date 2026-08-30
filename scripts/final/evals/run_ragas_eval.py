@@ -49,9 +49,13 @@ def main() -> None:
     if not os.getenv("OPENAI_API_KEY"):
         write_skip_report(args.output, "OPENAI_API_KEY is not configured")
         return
+
     try:
         from datasets import Dataset
+        from langchain_openai import ChatOpenAI, OpenAIEmbeddings
         from ragas import evaluate
+        from ragas.llms import LangchainLLMWrapper
+        from ragas.embeddings import LangchainEmbeddingsWrapper
         from ragas.metrics import answer_relevancy, context_precision, faithfulness
     except ImportError as exc:
         write_skip_report(args.output, f"RAGAS dependencies are not installed: {exc}")
@@ -69,7 +73,15 @@ def main() -> None:
             for row in rows
         ]
     )
-    result = evaluate(dataset, metrics=[faithfulness, answer_relevancy, context_precision])
+
+    llm = LangchainLLMWrapper(ChatOpenAI(model="gpt-4o-mini", temperature=0))
+    embeddings = LangchainEmbeddingsWrapper(OpenAIEmbeddings(model="text-embedding-3-small"))
+    result = evaluate(
+        dataset,
+        metrics=[faithfulness, answer_relevancy, context_precision],
+        llm=llm,
+        embeddings=embeddings,
+    )
     frame = result.to_pandas()
     frame.insert(0, "id", [row["id"] for row in rows])
     frame.to_csv(args.output, index=False)

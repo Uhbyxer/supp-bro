@@ -5,9 +5,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import statistics
 import time
-from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -126,8 +124,11 @@ def run_case(case: dict[str, Any], disable_rag: bool, min_vector_score: float) -
         "id": case["id"],
         "question": case["question"],
         "expected_behavior": case["expected_behavior"],
+        "expected_route": case.get("expected_route", ""),
+        "expected_tools": "; ".join(case.get("expected_tools") or []) or "none",
         "answer": state.get("final_answer", ""),
         "retrieved_chunks": retrieved_chunks(state),
+        "actual_route": state.get("selected_route", "unknown"),
         "route_or_mode": route_or_mode(state),
         "tools_used": "; ".join(tool_names(state)) or "none",
         "task_success": success,
@@ -143,9 +144,9 @@ def run_case(case: dict[str, Any], disable_rag: bool, min_vector_score: float) -
 
 def write_csv(rows: list[dict[str, Any]], path: Path) -> None:
     fieldnames = [
-        "id", "question", "expected_behavior", "answer", "retrieved_chunks",
-        "route_or_mode", "tools_used", "task_success", "groundedness",
-        "answer_quality", "latency_ms", "errors", "notes",
+        "id", "question", "expected_behavior", "expected_route", "expected_tools",
+        "answer", "retrieved_chunks", "actual_route", "route_or_mode", "tools_used",
+        "task_success", "groundedness", "answer_quality", "latency_ms", "errors", "notes",
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as target:
@@ -155,26 +156,33 @@ def write_csv(rows: list[dict[str, Any]], path: Path) -> None:
             writer.writerow({key: row[key] for key in fieldnames})
 
 
+def md(value: Any) -> str:
+    return str(value).replace("|", "\\|").replace("\n", "<br>")
+
+
+def short_answer(answer: str, limit: int = 220) -> str:
+    answer = " ".join(answer.split())
+    return answer if len(answer) <= limit else answer[: limit - 1] + "…"
+
+
 def write_summary(rows: list[dict[str, Any]], path: Path) -> None:
-    total = len(rows)
-    successes = sum(row["task_success"] == "yes" for row in rows)
-    grounded_good = sum(row["groundedness"] == "good" for row in rows)
-    avg_latency = int(statistics.mean(row["latency_ms"] for row in rows)) if rows else 0
-    errors = Counter(error for row in rows for error in row["errors"].split("; "))
-    error_summary = ", ".join(f"{error}: {count}" for error, count in errors.most_common()) or "none"
-    success_rate = f"{successes}/{total} ({successes / total:.0%})" if total else "n/a"
-    grounded_rate = f"{grounded_good}/{total} ({grounded_good / total:.0%})" if total else "n/a"
     lines = [
-        "## Deterministic workflow metrics",
+        "## Deterministic workflow test cases",
         "",
-        "| Metric | Value |",
-        "|---|---:|",
-        f"| Total cases | {total} |",
-        f"| Success rate | {success_rate} |",
-        f"| Groundedness good rate | {grounded_rate} |",
-        f"| Average latency | {avg_latency} ms |",
-        f"| Error types | {error_summary} |",
+        "| # | Question | Expected | Actual | Success | Groundedness | Quality | Latency | Errors |",
+        "|---:|---|---|---|---|---|---|---:|---|",
     ]
+    for row in rows:
+        expected = f"{row['expected_behavior']}<br>route=`{row['expected_route']}`<br>tools=`{row['expected_tools']}`"
+        actual = (
+            f"route=`{row['actual_route']}`<br>mode=`{row['route_or_mode']}`<br>"
+            f"tools=`{row['tools_used']}`<br>answer: {short_answer(row['answer'])}"
+        )
+        lines.append(
+            f"| {row['id']} | {md(row['question'])} | {md(expected)} | {md(actual)} | "
+            f"{row['task_success']} | {row['groundedness']} | {row['answer_quality']} | "
+            f"{row['latency_ms']} ms | {md(row['errors'])} |"
+        )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

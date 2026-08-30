@@ -51,7 +51,7 @@ jobs:
 
       - name: Install optional RAGAS dependencies
         if: ${{ inputs.run_ragas }}
-        run: pip install ragas datasets
+        run: pip install "ragas==0.4.3" "datasets==5.0.1" "langchain-openai==1.1.9"
 
       - name: Run optional RAGAS eval
         if: ${{ inputs.run_ragas }}
@@ -66,28 +66,35 @@ jobs:
             cat scripts/final/outputs/eval_summary.md >> "$GITHUB_STEP_SUMMARY"
           fi
           printf '\n\n' >> "$GITHUB_STEP_SUMMARY"
-          echo '## RAGAS metrics' >> "$GITHUB_STEP_SUMMARY"
+          echo '## RAGAS test cases' >> "$GITHUB_STEP_SUMMARY"
           echo '' >> "$GITHUB_STEP_SUMMARY"
           if [ -f scripts/final/outputs/eval_ragas_results.csv ]; then
             python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import csv
           from pathlib import Path
 
-          path = Path('scripts/final/outputs/eval_ragas_results.csv')
-          rows = list(csv.DictReader(path.open(encoding='utf-8')))
-          if rows and 'status' in rows[0]:
+          ragas_path = Path('scripts/final/outputs/eval_ragas_results.csv')
+          deterministic_path = Path('scripts/final/outputs/eval_workflow_results.csv')
+          ragas_rows = list(csv.DictReader(ragas_path.open(encoding='utf-8')))
+          deterministic_rows = {
+              row['id']: row for row in csv.DictReader(deterministic_path.open(encoding='utf-8'))
+          } if deterministic_path.exists() else {}
+
+          if ragas_rows and 'status' in ragas_rows[0]:
               print('| Status | Reason |')
               print('|---|---|')
-              for row in rows:
+              for row in ragas_rows:
                   print(f"| {row.get('status', '')} | {row.get('reason', '')} |")
-          elif rows:
-              metric_names = [name for name in ('faithfulness', 'answer_relevancy', 'context_precision') if name in rows[0]]
-              print('| Metric | Average |')
-              print('|---|---:|')
-              for metric in metric_names:
-                  values = [float(row[metric]) for row in rows if row.get(metric) not in (None, '', 'nan')]
-                  average = sum(values) / len(values) if values else float('nan')
-                  print(f'| {metric} | {average:.3f} |')
+          elif ragas_rows:
+              print('| # | Question | Faithfulness | Answer relevancy | Context precision |')
+              print('|---:|---|---:|---:|---:|')
+              for row in ragas_rows:
+                  case = deterministic_rows.get(str(row.get('id')), {})
+                  question = (case.get('question') or row.get('question') or '').replace('|', '\\|')
+                  print(
+                      f"| {row.get('id', '')} | {question} | {row.get('faithfulness', '')} | "
+                      f"{row.get('answer_relevancy', '')} | {row.get('context_precision', '')} |"
+                  )
           else:
               print('| Status | Reason |')
               print('|---|---|')
