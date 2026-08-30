@@ -38,8 +38,7 @@ Actions -> Final Workflow Eval -> Run workflow
 - читає `scripts/final/evals/eval_cases.json`;
 - запускає final LangGraph workflow;
 - збирає HW8-style eval table;
-- рахує observability metrics;
-- генерує quality report;
+- рахує deterministic observability metrics;
 - готує `ragas_input.json` для optional RAGAS pass.
 
 Основні outputs:
@@ -47,7 +46,6 @@ Actions -> Final Workflow Eval -> Run workflow
 ```text
 scripts/final/outputs/eval_workflow_results.csv
 scripts/final/outputs/eval_summary.md
-scripts/final/outputs/quality_report.md
 scripts/final/outputs/ragas_input.json
 ```
 
@@ -58,6 +56,8 @@ scripts/final/evals/run_ragas_eval.py
 ```
 
 RAGAS step потребує `OPENAI_API_KEY`. Якщо ключа немає, step записує skipped report і не ламає весь eval run.
+
+GitHub Actions job summary навмисно містить тільки дві таблиці з конкретними метриками поточного запуску: deterministic workflow metrics і RAGAS metrics. Описові висновки та рекомендації зберігаються тут у README, а не дублюються в кожному run.
 
 ## Eval Set
 
@@ -95,3 +95,23 @@ answer is not empty
 ```
 
 RAGAS eval інший: він оцінює answer quality поверх уже зібраного evidence. Для tool-augmented cases у contexts передаються не тільки RAG chunks, а й GitHub/Stack Overflow observations, щоб judge бачив повний evidence.
+
+## Quality Conclusions
+
+### Where The System Works Well
+
+- Direct documentation questions route to docs RAG.
+- Concrete troubleshooting questions can combine local issue evidence with external tools.
+- Vague or context-dependent questions are visible as clarification cases instead of silent hallucinations.
+
+### 3 Main Problems
+
+1. Deterministic routing is explainable but brittle for paraphrases without explicit Debezium/error keywords.
+2. The workflow has no session memory, so follow-up questions such as `Does this issue have a workaround now?` need clarification.
+3. Local BM25 is useful for the course corpus, but it is not production-ready for large document collections without a real keyword index.
+
+### Next Steps
+
+- Add a small LLM/router confidence layer or richer deterministic patterns for ambiguous troubleshooting queries.
+- Add session memory for active issue/topic references.
+- Replace local BM25 with a scalable inverted index if the corpus grows.
