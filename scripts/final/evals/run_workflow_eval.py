@@ -143,19 +143,9 @@ def run_case(case: dict[str, Any], disable_rag: bool, min_vector_score: float) -
 
 def write_csv(rows: list[dict[str, Any]], path: Path) -> None:
     fieldnames = [
-        "id",
-        "question",
-        "expected_behavior",
-        "answer",
-        "retrieved_chunks",
-        "route_or_mode",
-        "tools_used",
-        "task_success",
-        "groundedness",
-        "answer_quality",
-        "latency_ms",
-        "errors",
-        "notes",
+        "id", "question", "expected_behavior", "answer", "retrieved_chunks",
+        "route_or_mode", "tools_used", "task_success", "groundedness",
+        "answer_quality", "latency_ms", "errors", "notes",
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as target:
@@ -170,61 +160,22 @@ def write_summary(rows: list[dict[str, Any]], path: Path) -> None:
     successes = sum(row["task_success"] == "yes" for row in rows)
     grounded_good = sum(row["groundedness"] == "good" for row in rows)
     avg_latency = int(statistics.mean(row["latency_ms"] for row in rows)) if rows else 0
-    errors = Counter(
-        error
-        for row in rows
-        for error in row["errors"].split("; ")
-    )
+    errors = Counter(error for row in rows for error in row["errors"].split("; "))
+    error_summary = ", ".join(f"{error}: {count}" for error, count in errors.most_common()) or "none"
+    success_rate = f"{successes}/{total} ({successes / total:.0%})" if total else "n/a"
+    grounded_rate = f"{grounded_good}/{total} ({grounded_good / total:.0%})" if total else "n/a"
     lines = [
-        "# Final Workflow Eval Summary",
+        "## Deterministic workflow metrics",
         "",
-        f"Total cases: {total}",
-        f"Success rate: {successes}/{total} = {successes / total:.0%}" if total else "Success rate: n/a",
-        f"Groundedness good rate: {grounded_good}/{total} = {grounded_good / total:.0%}" if total else "Groundedness good rate: n/a",
-        f"Average latency: {avg_latency} ms",
-        "",
-        "Top error types:",
+        "| Metric | Value |",
+        "|---|---:|",
+        f"| Total cases | {total} |",
+        f"| Success rate | {success_rate} |",
+        f"| Groundedness good rate | {grounded_rate} |",
+        f"| Average latency | {avg_latency} ms |",
+        f"| Error types | {error_summary} |",
     ]
-    for error, count in errors.most_common():
-        lines.append(f"- `{error}`: {count}")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def write_quality_report(rows: list[dict[str, Any]], path: Path) -> None:
-    failures = [row for row in rows if row["task_success"] != "yes"]
-    lines = [
-        "# Quality Report — Final SuppBro Workflow",
-        "",
-        "## What Was Tested",
-        "",
-        "The eval set covers documentation RAG, issue investigation, GitHub issue lookup, Stack Overflow/community search, fallback/clarification, ambiguous input, and the known no-session-memory limitation.",
-        "",
-        "## Results",
-        "",
-        f"- Total cases: {len(rows)}",
-        f"- Successful cases: {sum(row['task_success'] == 'yes' for row in rows)}",
-        f"- Partial or failed cases: {len(failures)}",
-        "",
-        "## Where The System Works Well",
-        "",
-        "- Direct documentation questions route to docs RAG.",
-        "- Concrete troubleshooting questions can combine local issue evidence with external tools.",
-        "- Vague or context-dependent questions are visible as clarification cases instead of silent hallucinations.",
-        "",
-        "## 3 Main Problems",
-        "",
-        "1. Deterministic routing is explainable but brittle for paraphrases without explicit Debezium/error keywords.",
-        "2. The workflow has no session memory, so follow-up questions such as `Does this issue have a workaround now?` need clarification.",
-        "3. Local BM25 is useful for the course corpus, but it is not production-ready for large document collections without a real keyword index.",
-        "",
-        "## Next Steps",
-        "",
-        "- Add a small LLM/router confidence layer or richer deterministic patterns for ambiguous troubleshooting queries.",
-        "- Add session memory for active issue/topic references.",
-        "- Replace local BM25 with a scalable inverted index if the corpus grows.",
-        "",
-    ]
-    path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def write_ragas_input(rows: list[dict[str, Any]], path: Path) -> None:
@@ -236,15 +187,10 @@ def write_ragas_input(rows: list[dict[str, Any]], path: Path) -> None:
             contexts.extend((rag_call.get("retrieved_context_by_id") or {}).values())
         for tool_result in state.get("external_tool_results", []):
             contexts.append(json.dumps(tool_result, ensure_ascii=False))
-        payload.append(
-            {
-                "id": row["id"],
-                "question": row["question"],
-                "answer": row["answer"],
-                "contexts": contexts[:5],
-                "ground_truth": row["ground_truth"],
-            }
-        )
+        payload.append({
+            "id": row["id"], "question": row["question"], "answer": row["answer"],
+            "contexts": contexts[:5], "ground_truth": row["ground_truth"],
+        })
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
@@ -263,7 +209,6 @@ def main() -> None:
     rows = [run_case(case, args.disable_rag, args.min_vector_score) for case in load_cases(args.cases)]
     write_csv(rows, args.output_dir / "eval_workflow_results.csv")
     write_summary(rows, args.output_dir / "eval_summary.md")
-    write_quality_report(rows, args.output_dir / "quality_report.md")
     write_ragas_input(rows, args.output_dir / "ragas_input.json")
     print((args.output_dir / "eval_summary.md").read_text(encoding="utf-8"))
 
