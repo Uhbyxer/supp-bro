@@ -3,11 +3,6 @@ name: Final Workflow Eval
 on:
   workflow_dispatch:
     inputs:
-      disable_rag:
-        description: "Disable local RAG for smoke/debug runs"
-        required: true
-        default: false
-        type: boolean
       min_vector_score:
         description: "Minimum vector score passed to final RAG calls"
         required: true
@@ -30,19 +25,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run deterministic workflow eval
+      - name: Run full workflow eval
         env:
           GITHUB_TOKEN: ${{ github.token }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
           PINECONE_INDEX: ${{ vars.PINECONE_INDEX || 'supp-bro' }}
           PINECONE_NAMESPACE: ${{ vars.PINECONE_NAMESPACE || 'hw3-pinecone-vector' }}
-        run: |
-          args=(--min-vector-score "${{ inputs.min_vector_score }}")
-          if [ "${{ inputs.disable_rag }}" = "true" ]; then
-            args+=(--disable-rag)
-          fi
-          python scripts/final/evals/run_workflow_eval.py "${args[@]}"
+        run: python scripts/final/evals/run_workflow_eval.py --min-vector-score "${{ inputs.min_vector_score }}"
 
       - name: Run RAGAS eval
         env:
