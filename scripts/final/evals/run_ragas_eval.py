@@ -1,9 +1,8 @@
-"""Optional RAGAS evaluation for final SuppBro outputs."""
+"""RAGAS evaluation for final SuppBro outputs."""
 
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import os
 import sys
@@ -26,17 +25,8 @@ def load_rows(path: Path, max_contexts: int, max_chars: int) -> list[dict[str, A
     return rows
 
 
-def write_skip_report(path: Path, reason: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="", encoding="utf-8") as target:
-        writer = csv.DictWriter(target, fieldnames=["status", "reason"])
-        writer.writeheader()
-        writer.writerow({"status": "skipped", "reason": reason})
-    print(f"RAGAS skipped: {reason}")
-
-
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run optional RAGAS eval for final SuppBro results.")
+    parser = argparse.ArgumentParser(description="Run RAGAS eval for final SuppBro results.")
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT_PATH)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
     parser.add_argument("--max-contexts", type=int, default=5)
@@ -47,19 +37,14 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     if not os.getenv("OPENAI_API_KEY"):
-        write_skip_report(args.output, "OPENAI_API_KEY is not configured")
-        return
+        raise RuntimeError("OPENAI_API_KEY is not configured")
 
-    try:
-        from datasets import Dataset
-        from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-        from ragas import evaluate
-        from ragas.llms import LangchainLLMWrapper
-        from ragas.embeddings import LangchainEmbeddingsWrapper
-        from ragas.metrics import answer_relevancy, context_precision, faithfulness
-    except ImportError as exc:
-        write_skip_report(args.output, f"RAGAS dependencies are not installed: {exc}")
-        return
+    from datasets import Dataset
+    from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+    from ragas import evaluate
+    from ragas.embeddings import LangchainEmbeddingsWrapper
+    from ragas.llms import LangchainLLMWrapper
+    from ragas.metrics import answer_relevancy, context_precision, faithfulness
 
     rows = load_rows(args.input, args.max_contexts, args.max_context_chars)
     dataset = Dataset.from_list(

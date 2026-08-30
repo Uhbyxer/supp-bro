@@ -3,7 +3,7 @@ VENV ?= .venv
 PIP := $(VENV)/bin/pip
 PYTHON_BIN := $(VENV)/bin/python
 
-.PHONY: setup download-issues build-index semantic-search build-mongo-index mongo-semantic-search build-pinecone-index pinecone-semantic-search pinecone-retrieval-evaluation pinecone-hybrid-evaluation rag-answer hw5-external-tool hw6-agentic-workflow hw6-streamlit hw7-langgraph-workflow hw7-streamlit final-langgraph-workflow final-test final-streamlit
+.PHONY: setup download-issues build-index semantic-search build-mongo-index mongo-semantic-search build-pinecone-index pinecone-semantic-search pinecone-retrieval-evaluation pinecone-hybrid-evaluation rag-answer hw5-external-tool hw6-agentic-workflow hw6-streamlit hw7-langgraph-workflow hw7-streamlit final-langgraph-workflow final-test final-streamlit final-workflow-eval final-ragas-eval final-evals
 setup:
 	$(PYTHON) -m venv $(VENV)
 	$(PYTHON_BIN) -m pip install --upgrade pip
@@ -63,3 +63,11 @@ final-test:
 
 final-streamlit:
 	$(PYTHON_BIN) -m streamlit run scripts/final/streamlit_app.py
+
+final-workflow-eval:
+	$(PYTHON_BIN) scripts/final/evals/run_workflow_eval.py $(if $(MIN_VECTOR_SCORE),--min-vector-score $(MIN_VECTOR_SCORE),) $(if $(filter true,$(DISABLE_RAG)),--disable-rag,)
+
+final-ragas-eval:
+	$(PYTHON_BIN) scripts/final/evals/run_ragas_eval.py
+
+final-evals: final-workflow-eval final-ragas-eval
