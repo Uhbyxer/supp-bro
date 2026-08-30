@@ -33,24 +33,24 @@ scripts/final/outputs/eval_retrieval_results.md
 Actions -> Final Workflow Eval -> Run workflow
 ```
 
-Один запуск завжди виконує два етапи послідовно:
+Це full end-to-end integration eval, а не unit/smoke test. Один запуск завжди виконує повний production-like flow:
 
-1. deterministic workflow regression eval;
-2. RAGAS LLM-as-judge eval поверх результатів цього ж запуску.
+1. deterministic workflow regression eval з увімкненим RAG і реальними tools;
+2. RAGAS LLM-as-judge eval поверх answers та evidence цього ж запуску.
 
-`run_ragas` input більше немає — RAGAS не optional.
+RAG не можна вимкнути через workflow input або CLI flag. Єдиний runtime input — `min_vector_score`.
 
 Workflow використовує один `pip install -r requirements.txt`; RAGAS dependencies є частиною project requirements.
 
 Deterministic evaluator `scripts/final/evals/run_workflow_eval.py`:
 
 - читає `scripts/final/evals/eval_cases.json`;
-- запускає final LangGraph workflow;
+- запускає final LangGraph workflow з `enable_rag=True`;
 - збирає детальну таблицю по test cases;
-- рахує deterministic observability metrics;
-- готує `ragas_input.json`.
+- перевіряє route/tools/fallback/clarification поведінку;
+- готує `ragas_input.json` з фактичними answers і evidence.
 
-Після нього `scripts/final/evals/run_ragas_eval.py` завжди запускає RAGAS і записує per-case metrics.
+Після нього `scripts/final/evals/run_ragas_eval.py` запускає RAGAS і записує per-case metrics.
 
 Основні outputs:
 
@@ -75,11 +75,10 @@ make final-ragas-eval
 make final-evals
 ```
 
-`make final-evals` послідовно запускає deterministic evaluator, а потім RAGAS. Для deterministic evaluator можна передати:
+`make final-evals` послідовно запускає повний deterministic workflow eval, а потім RAGAS. За потреби можна змінити тільки retrieval threshold:
 
 ```text
 make final-workflow-eval MIN_VECTOR_SCORE=0.30
-make final-workflow-eval DISABLE_RAG=true
 ```
 
 ## Eval Set
@@ -100,7 +99,7 @@ make final-workflow-eval DISABLE_RAG=true
 
 ## Metrics
 
-Workflow regression eval використовує cheap deterministic checks. Вони не викликають LLM judge; їхня задача — ловити regression у behavior:
+Workflow regression eval використовує deterministic checks поверх реального end-to-end execution. Вони не замінюють сам flow і не мокають RAG/tools:
 
 ```text
 expected_route == actual_route
