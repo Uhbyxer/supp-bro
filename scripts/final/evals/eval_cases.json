@@ -1,0 +1,92 @@
+[
+  {
+    "id": 1,
+    "question": "Can I get exactly once delivery with Debezium?",
+    "allow_external_community_search": false,
+    "expected_behavior": "Answer from documentation RAG with grounded delivery semantics.",
+    "expected_route": "docs_answer",
+    "expected_tools": [],
+    "expected_mode": "rag",
+    "ground_truth": "Debezium documentation should be used to answer whether exactly-once delivery is supported."
+  },
+  {
+    "id": 2,
+    "question": "Explain the known Debezium MongoDB buffer lock problem from the local context.",
+    "allow_external_community_search": false,
+    "expected_behavior": "Use local issue retrieval and known GitHub issue context.",
+    "expected_route": "issue_investigation",
+    "expected_tools": ["get_github_issue_context"],
+    "expected_mode": "rag+tool",
+    "ground_truth": "The answer should explain the MongoDB buffer lock issue using local issue context and GitHub issue evidence."
+  },
+  {
+    "id": 3,
+    "question": "What should I do if Debezium MongoDB says unable to acquire buffer lock?",
+    "allow_external_community_search": true,
+    "expected_behavior": "Combine local issue evidence, GitHub metadata, and Stack Overflow/community signal.",
+    "expected_route": "issue_investigation",
+    "expected_tools": ["get_github_issue_context", "search_stackoverflow_questions"],
+    "expected_mode": "rag+tool+community",
+    "ground_truth": "The answer should mention the known MongoDB buffer lock symptom and include any available project/community evidence."
+  },
+  {
+    "id": 4,
+    "question": "Debezium Mysql Connector Failed with IllegalStateException for history topic",
+    "allow_external_community_search": true,
+    "expected_behavior": "Treat as troubleshooting issue and search Stack Overflow with a clean technical query.",
+    "expected_route": "issue_investigation",
+    "expected_tools": ["search_stackoverflow_questions"],
+    "expected_mode": "rag+community",
+    "ground_truth": "The answer should use the community result for the MySQL history topic IllegalStateException without forcing a GitHub issue lookup."
+  },
+  {
+    "id": 5,
+    "question": "Help with Debezium",
+    "allow_external_community_search": false,
+    "expected_behavior": "Ask clarification instead of guessing a retrieval/tool route.",
+    "expected_route": "clarification",
+    "expected_tools": ["ask_clarifying_question"],
+    "expected_mode": "clarification",
+    "ground_truth": "The assistant should ask what connector, error, or documentation topic the user means."
+  },
+  {
+    "id": 6,
+    "question": "How do I reset my iPhone password?",
+    "allow_external_community_search": false,
+    "expected_behavior": "Do not answer as a Debezium support question; ask for clarification or fall back.",
+    "expected_route": "clarification",
+    "expected_tools": ["ask_clarifying_question"],
+    "expected_mode": "clarification",
+    "ground_truth": "The assistant should not invent Debezium evidence for an out-of-domain question."
+  },
+  {
+    "id": 7,
+    "question": "Does this issue have a workaround now?",
+    "allow_external_community_search": true,
+    "expected_behavior": "Expose the no-session-memory limitation by asking for the concrete issue/topic.",
+    "expected_route": "clarification",
+    "expected_tools": ["ask_clarifying_question"],
+    "expected_mode": "clarification",
+    "ground_truth": "Without session memory, the assistant needs an explicit issue number, connector, or error signature."
+  },
+  {
+    "id": 8,
+    "question": "What is the recommended storage for Debezium schema history?",
+    "allow_external_community_search": false,
+    "expected_behavior": "Answer from documentation RAG using storage/schema history context.",
+    "expected_route": "docs_answer",
+    "expected_tools": [],
+    "expected_mode": "rag",
+    "ground_truth": "The answer should use Debezium documentation about schema history storage."
+  },
+  {
+    "id": 9,
+    "question": "It worked yesterday, but after restart it cannot recover its internal state",
+    "allow_external_community_search": false,
+    "expected_behavior": "Likely limitation case for deterministic routing; may ask clarification instead of finding schema history context.",
+    "expected_route": "clarification",
+    "expected_tools": ["ask_clarifying_question"],
+    "expected_mode": "clarification",
+    "ground_truth": "The question is ambiguous without explicit Debezium/schema-history terms, so clarification is acceptable."
+  }
+]
