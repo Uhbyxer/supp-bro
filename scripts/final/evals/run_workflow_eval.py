@@ -189,6 +189,8 @@ def write_summary(rows: list[dict[str, Any]], path: Path) -> None:
 def write_ragas_input(rows: list[dict[str, Any]], path: Path) -> None:
     payload = []
     for row in rows:
+        if row["expected_route"] == "clarification":
+            continue
         state = row["state"]
         contexts: list[str] = []
         for rag_call in state.get("rag_calls", []):
