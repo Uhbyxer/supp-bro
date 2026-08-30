@@ -3,11 +3,6 @@ name: Final Workflow Eval
 on:
   workflow_dispatch:
     inputs:
-      run_ragas:
-        description: "Run optional RAGAS LLM-as-judge eval"
-        required: true
-        default: false
-        type: boolean
       disable_rag:
         description: "Disable local RAG for smoke/debug runs"
         required: true
@@ -35,7 +30,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run final workflow regression eval
+      - name: Run deterministic workflow eval
         env:
           GITHUB_TOKEN: ${{ github.token }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -49,17 +44,7 @@ jobs:
           fi
           python scripts/final/evals/run_workflow_eval.py "${args[@]}"
 
-      - name: Install optional RAGAS dependencies
-        if: ${{ inputs.run_ragas }}
-        run: |
-          pip install \
-            "ragas==0.4.3" \
-            "datasets==5.0.1" \
-            "langchain-openai==1.1.9" \
-            "langchain-google-vertexai>=2.0.0"
-
-      - name: Run optional RAGAS eval
-        if: ${{ inputs.run_ragas }}
+      - name: Run RAGAS eval
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python scripts/final/evals/run_ragas_eval.py
@@ -85,12 +70,7 @@ jobs:
               row['id']: row for row in csv.DictReader(deterministic_path.open(encoding='utf-8'))
           } if deterministic_path.exists() else {}
 
-          if ragas_rows and 'status' in ragas_rows[0]:
-              print('| Status | Reason |')
-              print('|---|---|')
-              for row in ragas_rows:
-                  print(f"| {row.get('status', '')} | {row.get('reason', '')} |")
-          elif ragas_rows:
+          if ragas_rows:
               print('| # | Question | Faithfulness | Answer relevancy | Context precision |')
               print('|---:|---|---:|---:|---:|')
               for row in ragas_rows:
@@ -108,7 +88,7 @@ jobs:
           else
             echo '| Status | Reason |' >> "$GITHUB_STEP_SUMMARY"
             echo '|---|---|' >> "$GITHUB_STEP_SUMMARY"
-            echo '| not run | RAGAS was disabled for this run |' >> "$GITHUB_STEP_SUMMARY"
+            echo '| failed | RAGAS results were not produced |' >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Upload final workflow eval outputs
