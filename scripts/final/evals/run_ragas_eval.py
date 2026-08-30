@@ -1,0 +1,83 @@
+"""Optional RAGAS evaluation for final SuppBro outputs."""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import os
+import sys
+from pathlib import Path
+from typing import Any
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_INPUT_PATH = PROJECT_ROOT / "scripts/final/outputs/ragas_input.json"
+DEFAULT_OUTPUT_PATH = PROJECT_ROOT / "scripts/final/outputs/eval_ragas_results.csv"
+
+
+def compact_contexts(contexts: list[str], max_contexts: int, max_chars: int) -> list[str]:
+    return [context[:max_chars] for context in contexts[:max_contexts] if context]
+
+
+def load_rows(path: Path, max_contexts: int, max_chars: int) -> list[dict[str, Any]]:
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    for row in rows:
+        row["contexts"] = compact_contexts(row.get("contexts") or [], max_contexts, max_chars)
+    return rows
+
+
+def write_skip_report(path: Path, reason: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as target:
+        writer = csv.DictWriter(target, fieldnames=["status", "reason"])
+        writer.writeheader()
+        writer.writerow({"status": "skipped", "reason": reason})
+    print(f"RAGAS skipped: {reason}")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run optional RAGAS eval for final SuppBro results.")
+    parser.add_argument("--input", type=Path, default=DEFAULT_INPUT_PATH)
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
+    parser.add_argument("--max-contexts", type=int, default=5)
+    parser.add_argument("--max-context-chars", type=int, default=1500)
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    if not os.getenv("OPENAI_API_KEY"):
+        write_skip_report(args.output, "OPENAI_API_KEY is not configured")
+        return
+    try:
+        from datasets import Dataset
+        from ragas import evaluate
+        from ragas.metrics import answer_relevancy, context_precision, faithfulness
+    except ImportError as exc:
+        write_skip_report(args.output, f"RAGAS dependencies are not installed: {exc}")
+        return
+
+    rows = load_rows(args.input, args.max_contexts, args.max_context_chars)
+    dataset = Dataset.from_list(
+        [
+            {
+                "question": row["question"],
+                "answer": row["answer"],
+                "contexts": row["contexts"],
+                "ground_truth": row.get("ground_truth", ""),
+            }
+            for row in rows
+        ]
+    )
+    result = evaluate(dataset, metrics=[faithfulness, answer_relevancy, context_precision])
+    frame = result.to_pandas()
+    frame.insert(0, "id", [row["id"] for row in rows])
+    frame.to_csv(args.output, index=False)
+    print(frame.to_string(index=False))
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as exc:  # pragma: no cover - external evaluator can fail for provider reasons
+        sys.exit(f"RAGAS eval failed: {exc}")
