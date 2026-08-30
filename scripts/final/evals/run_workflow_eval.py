@@ -87,27 +87,6 @@ def task_success(errors: list[str], state: dict[str, Any], case: dict[str, Any])
     return "partial" if non_blocking else "yes"
 
 
-def groundedness(state: dict[str, Any], success: str) -> str:
-    if state.get("requires_clarification"):
-        return "not_applicable"
-    has_evidence = bool(state.get("retrieved_context")) or bool(state.get("external_tool_results"))
-    if success == "yes" and has_evidence:
-        return "good"
-    if has_evidence:
-        return "partial"
-    return "bad"
-
-
-def answer_quality(state: dict[str, Any], success: str) -> str:
-    if not state.get("final_answer"):
-        return "bad"
-    if success == "yes":
-        return "good"
-    if success == "partial":
-        return "partial"
-    return "bad"
-
-
 def run_case(case: dict[str, Any], min_vector_score: float) -> dict[str, Any]:
     start = time.perf_counter()
     state = run_langgraph_workflow(
@@ -132,8 +111,6 @@ def run_case(case: dict[str, Any], min_vector_score: float) -> dict[str, Any]:
         "route_or_mode": route_or_mode(state),
         "tools_used": "; ".join(tool_names(state)) or "none",
         "task_success": success,
-        "groundedness": groundedness(state, success),
-        "answer_quality": answer_quality(state, success),
         "latency_ms": latency_ms,
         "errors": "; ".join(errors),
         "notes": f"Expected route: {case.get('expected_route')}; actual route: {state.get('selected_route')}",
@@ -144,7 +121,7 @@ def write_csv(rows: list[dict[str, Any]], path: Path) -> None:
     fieldnames = [
         "id", "question", "expected_behavior", "expected_route", "expected_tools",
         "answer", "retrieved_chunks", "actual_route", "route_or_mode", "tools_used",
-        "task_success", "groundedness", "answer_quality", "latency_ms", "errors", "notes",
+        "task_success", "latency_ms", "errors", "notes",
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as target:
@@ -166,8 +143,8 @@ def write_summary(rows: list[dict[str, Any]], path: Path) -> None:
     lines = [
         "## Deterministic workflow test cases",
         "",
-        "| # | Question | Expected | Actual | Success | Groundedness | Quality | Latency | Errors |",
-        "|---:|---|---|---|---|---|---|---:|---|",
+        "| # | Question | Expected | Actual | Success | Latency | Errors |",
+        "|---:|---|---|---|---|---:|---|",
     ]
     for row in rows:
         expected = f"{row['expected_behavior']}<br>route=`{row['expected_route']}`<br>tools=`{row['expected_tools']}`"
@@ -177,8 +154,7 @@ def write_summary(rows: list[dict[str, Any]], path: Path) -> None:
         )
         lines.append(
             f"| {row['id']} | {md(row['question'])} | {md(expected)} | {md(actual)} | "
-            f"{row['task_success']} | {row['groundedness']} | {row['answer_quality']} | "
-            f"{row['latency_ms']} ms | {md(row['errors'])} |"
+            f"{row['task_success']} | {row['latency_ms']} ms | {md(row['errors'])} |"
         )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
