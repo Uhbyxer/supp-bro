@@ -65,7 +65,7 @@ final-streamlit:
 	$(PYTHON_BIN) -m streamlit run scripts/final/streamlit_app.py
 
 final-workflow-eval:
-	$(PYTHON_BIN) scripts/final/evals/run_workflow_eval.py $(if $(MIN_VECTOR_SCORE),--min-vector-score $(MIN_VECTOR_SCORE),) $(if $(filter true,$(DISABLE_RAG)),--disable-rag,)
+	$(PYTHON_BIN) scripts/final/evals/run_workflow_eval.py $(if $(MIN_VECTOR_SCORE),--min-vector-score $(MIN_VECTOR_SCORE),)
 
 final-ragas-eval:
 	$(PYTHON_BIN) scripts/final/evals/run_ragas_eval.py
