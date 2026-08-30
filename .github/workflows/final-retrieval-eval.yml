@@ -1,0 +1,58 @@
+name: Final Retrieval Eval
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Optional metadata source filter: pages, issues, or all"
+        required: false
+        default: "all"
+        type: choice
+        options:
+          - all
+          - pages
+          - issues
+
+jobs:
+  retrieval-eval:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run final retrieval eval
+        env:
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          PINECONE_INDEX: ${{ vars.PINECONE_INDEX || 'supp-bro' }}
+          PINECONE_NAMESPACE: ${{ vars.PINECONE_NAMESPACE || 'hw3-pinecone-vector' }}
+          PINECONE_SOURCE: ${{ inputs.source }}
+          PINECONE_HYBRID_JSON_PATH: scripts/final/outputs/eval_retrieval_results.json
+          PINECONE_HYBRID_SUMMARY_PATH: scripts/final/outputs/eval_retrieval_results.md
+        run: |
+          if [ "$PINECONE_SOURCE" = "all" ]; then
+            unset PINECONE_SOURCE
+          fi
+          python scripts/hw3/pinecone_hybrid_evaluation.py
+
+      - name: Add report to job summary
+        if: always()
+        run: |
+          if [ -f scripts/final/outputs/eval_retrieval_results.md ]; then
+            cat scripts/final/outputs/eval_retrieval_results.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload final retrieval eval outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-retrieval-eval
+          path: scripts/final/outputs/
