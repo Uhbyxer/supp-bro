@@ -41,8 +41,9 @@ Deterministic evaluator `scripts/final/evals/run_workflow_eval.py`:
 
 - читає `scripts/final/evals/eval_cases.json`;
 - запускає final LangGraph workflow з `enable_rag=True`;
-- збирає детальну таблицю по всіх test cases;
-- перевіряє route/tools/fallback/clarification поведінку;
+- збирає таблицю по всіх test cases;
+- перевіряє тільки те, що можна перевірити детерміновано: route, expected tools, clarification/fallback behavior, наявність answer;
+- не оцінює semantic quality, faithfulness або groundedness відповіді;
 - не готує input і не запускає RAGAS.
 
 GitHub Actions job summary містить тільки deterministic test-case table. Action не запускає RAGAS і не публікує `eval_ragas_results.csv` як artifact.
@@ -53,6 +54,19 @@ GitHub Actions job summary містить тільки deterministic test-case t
 scripts/final/outputs/eval_workflow_results.csv
 scripts/final/outputs/eval_summary.md
 ```
+
+Deterministic summary показує тільки фактичні orchestration checks:
+
+```text
+Question
+Expected route/tools
+Actual route/mode/tools/answer preview
+Success
+Latency
+Errors
+```
+
+`Success` є результатом hardcoded regression rules, а не LLM-as-judge оцінкою. Semantic висновки не виводяться як synthetic `good/partial/bad` поля.
 
 ## Local RAGAS Eval
 
@@ -129,6 +143,8 @@ answer is not empty
 RAGAS eval оцінює answer quality поверх evidence, який він сам збирає у власному локальному workflow run. Для tool-augmented cases у contexts передаються не тільки RAG chunks, а й GitHub/Stack Overflow observations, щоб judge бачив повний evidence.
 
 Ці два eval-и доповнюють один одного: deterministic evaluation ловить orchestration/routing regressions, а RAGAS — answer-quality проблеми, які можуть залишатися невидимими навіть коли route і tools вибрані правильно.
+
+Описові висновки про те, що працює добре, які є обмеження і що покращувати, зберігаються нижче в README. Вони не генеруються deterministic evaluator-ом.
 
 ## Quality Conclusions
 
