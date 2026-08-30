@@ -13,6 +13,14 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_INPUT_PATH = PROJECT_ROOT / "scripts/final/outputs/ragas_input.json"
 DEFAULT_OUTPUT_PATH = PROJECT_ROOT / "scripts/final/outputs/eval_ragas_results.csv"
 
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - python-dotenv is installed through requirements.txt
+    load_dotenv = None
+
+if load_dotenv is not None:
+    load_dotenv(PROJECT_ROOT / ".env")
+
 
 def compact_contexts(contexts: list[str], max_contexts: int, max_chars: int) -> list[str]:
     return [context[:max_chars] for context in contexts[:max_contexts] if context]
