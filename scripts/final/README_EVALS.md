@@ -7,8 +7,8 @@
 | Flow | Що перевіряє | Output |
 |---|---|---|
 | Retrieval eval | Чи Pinecone dense search + local BM25 + RRF знаходять правильні chunks. | `scripts/final/outputs/eval_retrieval_results.md` |
-| Workflow regression eval | Чи final chatbot вибирає правильний route, викликає потрібні tools, коректно fallback-иться або питає clarification. | `scripts/final/outputs/eval_workflow_results.csv` |
-| RAGAS eval | Чи final answer grounded і relevant до question/evidence. | `scripts/final/outputs/eval_ragas_results.csv` |
+| Workflow regression eval | Чи final chatbot у повному end-to-end flow вибирає правильний route, запускає RAG, викликає потрібні tools, коректно fallback-иться або питає clarification. | `scripts/final/outputs/eval_workflow_results.csv` |
+| RAGAS eval | Чи final answer grounded і relevant до question/evidence, зібраного тим самим full-flow запуском. | `scripts/final/outputs/eval_ragas_results.csv` |
 
 ## Manual GitHub Actions
 
@@ -35,20 +35,21 @@ Actions -> Final Workflow Eval -> Run workflow
 
 Один запуск завжди виконує два етапи послідовно:
 
-1. deterministic workflow regression eval;
+1. full end-to-end workflow regression eval з увімкненим RAG;
 2. RAGAS LLM-as-judge eval поверх результатів цього ж запуску.
 
-`run_ragas` input більше немає — RAGAS не optional.
+Немає `run_ragas` або `disable_rag` inputs: RAG і RAGAS завжди увімкнені. Це integration/e2e eval реального final flow, а не unit/smoke test.
 
 Workflow використовує один `pip install -r requirements.txt`; RAGAS dependencies є частиною project requirements.
 
-Deterministic evaluator `scripts/final/evals/run_workflow_eval.py`:
+Evaluator `scripts/final/evals/run_workflow_eval.py`:
 
 - читає `scripts/final/evals/eval_cases.json`;
-- запускає final LangGraph workflow;
+- запускає final LangGraph workflow з `enable_rag=True`;
+- виконує реальний retrieval і доступні external tools;
 - збирає детальну таблицю по test cases;
-- рахує deterministic observability metrics;
-- готує `ragas_input.json`.
+- рахує deterministic behavior metrics;
+- готує `ragas_input.json` із реально отриманими answers/evidence.
 
 Після нього `scripts/final/evals/run_ragas_eval.py` завжди запускає RAGAS і записує per-case metrics.
 
@@ -75,11 +76,10 @@ make final-ragas-eval
 make final-evals
 ```
 
-`make final-evals` послідовно запускає deterministic evaluator, а потім RAGAS. Для deterministic evaluator можна передати:
+`make final-evals` послідовно запускає повний workflow evaluator, а потім RAGAS. Опціонально можна змінити тільки retrieval threshold:
 
 ```text
 make final-workflow-eval MIN_VECTOR_SCORE=0.30
-make final-workflow-eval DISABLE_RAG=true
 ```
 
 ## Eval Set
@@ -100,7 +100,7 @@ make final-workflow-eval DISABLE_RAG=true
 
 ## Metrics
 
-Workflow regression eval використовує cheap deterministic checks. Вони не викликають LLM judge; їхня задача — ловити regression у behavior:
+Workflow regression eval використовує deterministic checks поверх повного реального flow. Вони не підміняють workflow mocks/unit tests; вони перевіряють фактичний результат end-to-end запуску:
 
 ```text
 expected_route == actual_route
