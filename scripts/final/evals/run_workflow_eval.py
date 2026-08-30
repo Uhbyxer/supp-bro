@@ -1,4 +1,4 @@
-"""Run HW8-style evaluation for the final SuppBro workflow."""
+"""Run full-flow evaluation for the final SuppBro workflow."""
 
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ def error_types(case: dict[str, Any], state: dict[str, Any]) -> list[str]:
     for rag_call in state.get("rag_calls", []):
         status = rag_call.get("status")
         fallback_reason = rag_call.get("fallback_reason")
-        if status in {"filter_fallback", "model_fallback", "rag_disabled"}:
+        if status in {"filter_fallback", "model_fallback"}:
             errors.append(fallback_reason or status)
     if state.get("fallback_used") and not errors:
         errors.append("fallback_used")
@@ -108,14 +108,14 @@ def answer_quality(state: dict[str, Any], success: str) -> str:
     return "bad"
 
 
-def run_case(case: dict[str, Any], disable_rag: bool, min_vector_score: float) -> dict[str, Any]:
+def run_case(case: dict[str, Any], min_vector_score: float) -> dict[str, Any]:
     start = time.perf_counter()
     state = run_langgraph_workflow(
         question=case["question"],
         allow_external_community_search=case.get("allow_external_community_search", False),
         issue_number=case.get("issue_number"),
         min_vector_score=min_vector_score,
-        enable_rag=not disable_rag,
+        enable_rag=True,
     )
     latency_ms = int((time.perf_counter() - start) * 1000)
     errors = error_types(case, state)
@@ -203,10 +203,9 @@ def write_ragas_input(rows: list[dict[str, Any]], path: Path) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run final SuppBro workflow evals.")
+    parser = argparse.ArgumentParser(description="Run final SuppBro full-flow evals.")
     parser.add_argument("--cases", type=Path, default=DEFAULT_CASES_PATH)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
-    parser.add_argument("--disable-rag", action="store_true")
     parser.add_argument("--min-vector-score", type=float, default=0.30)
     return parser.parse_args()
 
@@ -214,7 +213,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    rows = [run_case(case, args.disable_rag, args.min_vector_score) for case in load_cases(args.cases)]
+    rows = [run_case(case, args.min_vector_score) for case in load_cases(args.cases)]
     write_csv(rows, args.output_dir / "eval_workflow_results.csv")
     write_summary(rows, args.output_dir / "eval_summary.md")
     write_ragas_input(rows, args.output_dir / "ragas_input.json")
