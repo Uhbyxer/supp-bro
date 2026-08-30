@@ -59,15 +59,45 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python scripts/final/evals/run_ragas_eval.py
 
-      - name: Add reports to job summary
+      - name: Add metric tables to job summary
         if: always()
         run: |
-          for report in scripts/final/outputs/eval_summary.md scripts/final/outputs/quality_report.md; do
-            if [ -f "$report" ]; then
-              cat "$report" >> "$GITHUB_STEP_SUMMARY"
-              printf '\n\n' >> "$GITHUB_STEP_SUMMARY"
-            fi
-          done
+          if [ -f scripts/final/outputs/eval_summary.md ]; then
+            cat scripts/final/outputs/eval_summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          printf '\n\n' >> "$GITHUB_STEP_SUMMARY"
+          echo '## RAGAS metrics' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          if [ -f scripts/final/outputs/eval_ragas_results.csv ]; then
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import csv
+          from pathlib import Path
+
+          path = Path('scripts/final/outputs/eval_ragas_results.csv')
+          rows = list(csv.DictReader(path.open(encoding='utf-8')))
+          if rows and 'status' in rows[0]:
+              print('| Status | Reason |')
+              print('|---|---|')
+              for row in rows:
+                  print(f"| {row.get('status', '')} | {row.get('reason', '')} |")
+          elif rows:
+              metric_names = [name for name in ('faithfulness', 'answer_relevancy', 'context_precision') if name in rows[0]]
+              print('| Metric | Average |')
+              print('|---|---:|')
+              for metric in metric_names:
+                  values = [float(row[metric]) for row in rows if row.get(metric) not in (None, '', 'nan')]
+                  average = sum(values) / len(values) if values else float('nan')
+                  print(f'| {metric} | {average:.3f} |')
+          else:
+              print('| Status | Reason |')
+              print('|---|---|')
+              print('| no results | RAGAS produced no rows |')
+          PY
+          else
+            echo '| Status | Reason |' >> "$GITHUB_STEP_SUMMARY"
+            echo '|---|---|' >> "$GITHUB_STEP_SUMMARY"
+            echo '| not run | RAGAS was disabled for this run |' >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload final workflow eval outputs
         if: always()
