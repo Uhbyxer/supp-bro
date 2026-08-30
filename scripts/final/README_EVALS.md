@@ -144,7 +144,40 @@ RAGAS eval оцінює answer quality поверх evidence, який він с
 
 Ці два eval-и доповнюють один одного: deterministic evaluation ловить orchestration/routing regressions, а RAGAS — answer-quality проблеми, які можуть залишатися невидимими навіть коли route і tools вибрані правильно.
 
-Описові висновки нижче зроблені вручну на основі deterministic GitHub Actions run `33314524802` та закоміченого локального `scripts/final/outputs/eval_ragas_results.csv`. Вони не генеруються evaluator-ом автоматично.
+## Evaluation Snapshot Used For Conclusions
+
+Висновки нижче зроблені вручну на основі двох конкретних результатів:
+
+- **Deterministic GitHub Actions run:** https://github.com/Uhbyxer/supp-bro/actions/runs/33314524802
+- **Committed local RAGAS results:** https://github.com/Uhbyxer/supp-bro/blob/main/scripts/final/outputs/eval_ragas_results.csv
+
+Щоб аналіз було зручно читати без переходів між GitHub Action і CSV, ключові результати скопійовані нижче.
+
+### Deterministic Results — Run 33314524802
+
+| # | Question | Expected | Actual | Success | Latency | Errors |
+|---:|---|---|---|---|---:|---|
+| 1 | Can I get exactly once delivery with Debezium? | `docs_answer`, no tools | `docs_answer/rag`, no tools | `yes` | 13610 ms | `none` |
+| 2 | Explain the known Debezium MongoDB buffer lock problem from the local context. | `issue_investigation`, `get_github_issue_context` | `issue_investigation/rag+tool`, GitHub issue tool | `yes` | 17685 ms | `none` |
+| 3 | What should I do if Debezium MongoDB says unable to acquire buffer lock? | `issue_investigation`, GitHub + Stack Overflow | `issue_investigation/rag+tool`, GitHub + Stack Overflow | `yes` | 15297 ms | `none` |
+| 4 | Debezium Mysql Connector Failed with IllegalStateException for history topic | `issue_investigation`, Stack Overflow | `issue_investigation/rag+tool`, Stack Overflow | `partial` | 13861 ms | `llm_reports_insufficient_context` |
+| 5 | Help with Debezium | `clarification`, `ask_clarifying_question` | `clarification`, clarification tool | `yes` | 8 ms | `none` |
+| 6 | How do I reset my iPhone password? | `clarification`, `ask_clarifying_question` | `docs_answer/fallback`, no tools | `no` | 8083 ms | `wrong_route; missing_tool` |
+| 7 | Does this issue have a workaround now? | `clarification`, `ask_clarifying_question` | `community_lookup/rag+tool`, Stack Overflow | `no` | 11509 ms | `wrong_route; missing_tool` |
+| 8 | What is the recommended storage for Debezium schema history? | `docs_answer`, no tools | `docs_answer/rag`, no tools | `yes` | 10455 ms | `none` |
+| 9 | It worked yesterday, but after restart it cannot recover its internal state | `clarification`, `ask_clarifying_question` | `docs_answer/fallback`, no tools | `no` | 8066 ms | `wrong_route; missing_tool` |
+
+### RAGAS Results — Committed Local Run
+
+RAGAS запускається тільки для grounded-answer cases, тому clarification cases 5, 6, 7 і 9 тут відсутні.
+
+| # | Question | Faithfulness | Answer relevancy | Context precision |
+|---:|---|---:|---:|---:|
+| 1 | Can I get exactly once delivery with Debezium? | 0.750 | 0.795 | 0.917 |
+| 2 | Explain the known Debezium MongoDB buffer lock problem from the local context. | 0.571 | 0.882 | 1.000 |
+| 3 | What should I do if Debezium MongoDB says unable to acquire buffer lock? | 0.182 | 0.792 | 1.000 |
+| 4 | Debezium Mysql Connector Failed with IllegalStateException for history topic | 0.300 | 0.000 | 0.000 |
+| 8 | What is the recommended storage for Debezium schema history? | 0.000 | 0.901 | 0.917 |
 
 ## Per-case Conclusions
 
@@ -159,7 +192,7 @@ RAGAS eval оцінює answer quality поверх evidence, який він с
 |---:|---|---|---|---|
 | 1 | `yes`: `docs_answer`, RAG, no tools | `0.75 / 0.80 / 0.92` | **OK** | Route і retrieval правильні, відповідь релевантна і переважно faithful. Невеликий запас для покращення: чіткіше сказати, що Debezium за замовчуванням дає at-least-once, а exactly-once залежить від Kafka Connect support/configuration і підтримуваного source connector. Сам test case коректний. |
 | 2 | `yes`: `issue_investigation`, RAG + GitHub issue tool | `0.57 / 0.88 / 1.00` | **Improve bot** | Evidence підібраний дуже добре, route/tool правильні. Нижча faithfulness показує, що answer переходить від факту `buffer queue is likely full` до сильніших інтерпретацій і generic advice про buffer settings/workload, які evidence прямо не підтверджує. Треба чітко відділяти observed facts від припущень і не давати remediation без source support. Test case достатньо добрий. |
-| 3 | `yes`: `issue_investigation`, GitHub + Stack Overflow tools | `0.18 / 0.79 / 1.00` | **Improve both** | Orchestration і context selection пройшли, але дуже низька faithfulness показує реальну generation problem: бот радить `increase buffer size`, monitor workload тощо без підтвердженого workaround в evidence. Одночасно test question питає `What should I do`, а reference описує лише symptom/evidence і не визначає, яка remediation вважається правильною. Бот має відповідати evidence-backed кроками або прямо казати, що підтвердженого workaround немає; test case треба доповнити explicit expected remediation behavior. |
+| 3 | `yes`: `issue_investigation`, GitHub + Stack Overflow tools | `0.18 / 0.79 / 1.00` | **Improve both** | Orchestration і context selection пройшли, але дуже низька faithfulness показує generation problem: бот радить `increase buffer size`, monitor workload тощо без підтвердженого workaround в evidence. Одночасно test question питає `What should I do`, а reference описує лише symptom/evidence і не визначає, яка remediation вважається правильною. Бот має відповідати evidence-backed кроками або прямо казати, що підтвердженого workaround немає; test case треба доповнити explicit expected remediation behavior. |
 | 4 | `partial`: route/tool правильні, але `llm_reports_insufficient_context` | `0.30 / 0.00 / 0.00` | **Improve both** | Бот правильно не вигадує впевнену відповідь при недостатньому evidence, але community retrieval повернув нерелевантний матеріал, тому це реальна retrieval/query-quality проблема. Водночас test case занадто залежить від live Stack Overflow і очікує конкретно корисний community result, який може змінюватись або не існувати. Для стабільного regression test краще pin-нути відомий result/fixture або вважати валідним outcome `searched community + rejected irrelevant evidence`. |
 | 5 | `yes`: clarification + `ask_clarifying_question` | N/A | **OK** | Правильна conversational-control поведінка: бот не вгадує connector/error і просить конкретизацію. Це хороший deterministic case; RAGAS тут свідомо не застосовується. |
 | 6 | `no`: пішов у `docs_answer/fallback` замість clarification | N/A | **Improve both** | Реальна проблема router-а: out-of-domain iPhone question не повинно запускати Debezium docs RAG. Потрібен explicit out-of-domain/confidence guard. Але expectation тесту теж можна зробити точнішим: для явно чужого домену не обов'язково саме `ask_clarifying_question`; коректним може бути explicit out-of-domain fallback/refusal to route. Тест має перевіряти `do not use Debezium retrieval`, а не жорстко один implementation route. |
@@ -171,30 +204,30 @@ RAGAS eval оцінює answer quality поверх evidence, який він с
 
 ### What Works
 
-- Direct documentation questions (#1) стабільно йдуть у docs RAG і дають релевантну grounded відповідь.
-- Concrete issue questions (#2, #3) правильно активують local issue retrieval та зовнішні tools.
-- Явно vague Debezium query (#5) коректно переходить у clarification.
+- Direct documentation question #1 стабільно йде у docs RAG і має добрі semantic metrics.
+- Concrete issue questions #2 і #3 правильно активують local issue retrieval та зовнішні tools.
+- Явно vague Debezium query #5 коректно переходить у clarification.
 - Deterministic + RAGAS разом дають корисніший сигнал, ніж будь-який один evaluator: #3 і #8 проходять orchestration checks, але RAGAS виявляє semantic answer problems.
 
 ### Main Bot Problems
 
-1. **Unsupported remediation / over-interpretation.** У #2 і особливо #3 бот додає troubleshooting advice, якого немає в evidence; у #8 перетворює список supported implementations на recommendation.
-2. **Weak ambiguity and domain routing.** #6, #7 і #9 показують, що router занадто охоче вибирає retrieval/tool route замість clarification/out-of-domain handling.
-3. **Community retrieval quality.** #4 показує, що сам факт виклику Stack Overflow tool ще не означає, що знайдений result релевантний; потрібен relevance gate перед використанням external evidence.
-4. **No session memory/reference validation.** #7 демонструє, що unresolved pronouns (`this issue`) треба блокувати до отримання конкретного referent.
+1. **Unsupported remediation / over-interpretation.** У #2 і особливо #3 бот додає troubleshooting advice, якого немає в evidence.
+2. **Weak ambiguity and out-of-domain routing.** #6 і #9 йдуть у docs retrieval замість safe clarification/out-of-domain behavior.
+3. **Invented conversational context.** У #7 бот трактує `this issue` як конкретну проблему без session memory.
+4. **Overstating source claims.** У #8 перелік підтримуваних storage implementations перетворюється на recommendation.
+5. **Community retrieval quality.** У #4 external search повертає нерелевантний evidence і не дозволяє побудувати корисну troubleshooting answer.
 
 ### Test-set Improvements
 
-1. **Case #3:** reference має явно визначати допустимі troubleshooting steps і вимагати не вигадувати workaround, якщо evidence його не містить.
-2. **Case #4:** live community search робить expectation нестабільним. Або pin/fixture конкретний result, або тестувати behavior `search + relevance check + safe fallback` замість гарантованої відповіді з Stack Overflow.
-3. **Case #6:** expectation краще формулювати як `do not route into Debezium RAG/tools`; clarification і explicit out-of-domain fallback можуть бути обидва валідні outcomes.
-4. **Case #8:** замінити неоднозначне `recommended storage` на питання про supported storage options/persistence або дати reference з конкретною рекомендацією.
+1. **Case #3:** reference має чітко визначати, які remediation steps підтримуються evidence і чи правильним є висновок `no confirmed workaround`.
+2. **Case #4:** live Stack Overflow search робить regression нестабільним. Або pin/fixture known community result, або перевіряти здатність відкинути нерелевантний result.
+3. **Case #6:** expectation краще формулювати як `do not route into Debezium retrieval/tools`; конкретний out-of-domain route може бути implementation detail.
+4. **Case #8:** замінити неоднозначне `recommended storage` на питання про supported/persistent schema-history options або додати точний source-backed recommendation.
 
 ### Next Steps
 
-- Додати evidence-aware generation instruction: не перетворювати observations на remediation/recommendation без прямої підтримки source context.
-- Додати router confidence/domain guard для out-of-domain та ambiguous queries.
-- Додати unresolved-reference check для follow-up phrases без session context.
-- Додати relevance validation для Stack Overflow/community results перед включенням у final answer.
-- Уточнити test cases #3, #4, #6 і #8 згідно з висновками вище.
-- Якщо corpus виросте, замінити local BM25 на scalable inverted index.
+- Додати router confidence/out-of-domain guard перед docs/community routes.
+- Для unresolved references типу `this issue` вимагати session context або clarification.
+- Зробити answer generation більш evidence-constrained: remediation і recommendation повинні бути явно підтримані retrieved/tool evidence.
+- Покращити filtering/relevance validation для community search result перед передачею його в generation.
+- Підчистити cases #3, #4, #6 і #8, щоб regression expectations перевіряли бажану поведінку, а не випадкові implementation details або нестабільні зовнішні результати.
