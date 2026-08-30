@@ -12,7 +12,7 @@
 
 ## Manual GitHub Actions
 
-Обидва workflow запускаються тільки вручну через `workflow_dispatch`.
+Обидва GitHub workflow запускаються тільки вручну через `workflow_dispatch`.
 
 ### Final Retrieval Eval
 
@@ -33,14 +33,9 @@ scripts/final/outputs/eval_retrieval_results.md
 Actions -> Final Workflow Eval -> Run workflow
 ```
 
-Це full end-to-end integration eval, а не unit/smoke test. Один запуск завжди виконує повний production-like flow:
-
-1. deterministic workflow regression eval з увімкненим RAG і реальними tools для всіх test cases;
-2. RAGAS LLM-as-judge eval поверх grounded-answer cases цього ж запуску.
+Це full end-to-end integration eval, а не unit/smoke test. GitHub Action запускає тільки deterministic workflow regression eval з увімкненим RAG і реальними tools для всіх test cases.
 
 RAG не можна вимкнути через workflow input або CLI flag. Єдиний runtime input — `min_vector_score`.
-
-Workflow використовує один `pip install -r requirements.txt`; RAGAS dependencies є частиною project requirements.
 
 Deterministic evaluator `scripts/final/evals/run_workflow_eval.py`:
 
@@ -50,20 +45,33 @@ Deterministic evaluator `scripts/final/evals/run_workflow_eval.py`:
 - перевіряє route/tools/fallback/clarification поведінку;
 - готує `ragas_input.json` тільки для cases, де очікується grounded answer.
 
-Після нього `scripts/final/evals/run_ragas_eval.py` запускає RAGAS і записує per-case metrics для відібраних grounded-answer cases.
+GitHub Actions job summary містить тільки deterministic test-case table. Action не запускає RAGAS і не публікує `eval_ragas_results.csv` як artifact.
 
-Основні outputs:
+Основні outputs GitHub Action:
 
 ```text
 scripts/final/outputs/eval_workflow_results.csv
 scripts/final/outputs/eval_summary.md
 scripts/final/outputs/ragas_input.json
+```
+
+## Local RAGAS Eval
+
+RAGAS запускається локально окремо:
+
+```text
+make final-ragas-eval
+```
+
+Він читає `scripts/final/outputs/ragas_input.json` і записує:
+
+```text
 scripts/final/outputs/eval_ragas_results.csv
 ```
 
-RAGAS потребує `OPENAI_API_KEY`. Якщо ключа або dependency немає, eval завершується помилкою замість тихого `skipped`, щоб GitHub Action не виглядав успішним без реального RAGAS evaluation.
+Результат локального RAGAS run можна закомітити в репозиторій як зафіксований evaluation result. RAGAS не запускається у GitHub Actions через нестабільну/повільну поведінку LLM-as-judge calls у hosted runner.
 
-GitHub Actions job summary містить повну deterministic таблицю і RAGAS таблицю тільки для grounded-answer cases. Описові висновки та рекомендації зберігаються тут у README, а не дублюються в кожному run.
+RAGAS потребує `OPENAI_API_KEY`.
 
 ## Local Commands
 
@@ -75,7 +83,7 @@ make final-ragas-eval
 make final-evals
 ```
 
-`make final-evals` послідовно запускає повний deterministic workflow eval, а потім RAGAS для grounded-answer cases. За потреби можна змінити тільки retrieval threshold:
+`make final-evals` локально послідовно запускає повний deterministic workflow eval, а потім RAGAS для grounded-answer cases. За потреби можна змінити тільки retrieval threshold:
 
 ```text
 make final-workflow-eval MIN_VECTOR_SCORE=0.30
