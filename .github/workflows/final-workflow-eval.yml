@@ -34,56 +34,19 @@ jobs:
           PINECONE_NAMESPACE: ${{ vars.PINECONE_NAMESPACE || 'hw3-pinecone-vector' }}
         run: python scripts/final/evals/run_workflow_eval.py --min-vector-score "${{ inputs.min_vector_score }}"
 
-      - name: Run RAGAS eval
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: python scripts/final/evals/run_ragas_eval.py
-
-      - name: Add metric tables to job summary
+      - name: Add deterministic table to job summary
         if: always()
         run: |
           if [ -f scripts/final/outputs/eval_summary.md ]; then
             cat scripts/final/outputs/eval_summary.md >> "$GITHUB_STEP_SUMMARY"
           fi
-          printf '\n\n' >> "$GITHUB_STEP_SUMMARY"
-          echo '## RAGAS test cases' >> "$GITHUB_STEP_SUMMARY"
-          echo '' >> "$GITHUB_STEP_SUMMARY"
-          if [ -f scripts/final/outputs/eval_ragas_results.csv ]; then
-            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
-          import csv
-          from pathlib import Path
 
-          ragas_path = Path('scripts/final/outputs/eval_ragas_results.csv')
-          deterministic_path = Path('scripts/final/outputs/eval_workflow_results.csv')
-          ragas_rows = list(csv.DictReader(ragas_path.open(encoding='utf-8')))
-          deterministic_rows = {
-              row['id']: row for row in csv.DictReader(deterministic_path.open(encoding='utf-8'))
-          } if deterministic_path.exists() else {}
-
-          if ragas_rows:
-              print('| # | Question | Faithfulness | Answer relevancy | Context precision |')
-              print('|---:|---|---:|---:|---:|')
-              for row in ragas_rows:
-                  case = deterministic_rows.get(str(row.get('id')), {})
-                  question = (case.get('question') or row.get('question') or '').replace('|', '\\|')
-                  print(
-                      f"| {row.get('id', '')} | {question} | {row.get('faithfulness', '')} | "
-                      f"{row.get('answer_relevancy', '')} | {row.get('context_precision', '')} |"
-                  )
-          else:
-              print('| Status | Reason |')
-              print('|---|---|')
-              print('| no results | RAGAS produced no rows |')
-          PY
-          else
-            echo '| Status | Reason |' >> "$GITHUB_STEP_SUMMARY"
-            echo '|---|---|' >> "$GITHUB_STEP_SUMMARY"
-            echo '| failed | RAGAS results were not produced |' >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Upload final workflow eval outputs
+      - name: Upload deterministic eval outputs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: final-workflow-eval
-          path: scripts/final/outputs/
+          path: |
+            scripts/final/outputs/eval_workflow_results.csv
+            scripts/final/outputs/eval_summary.md
+            scripts/final/outputs/ragas_input.json
