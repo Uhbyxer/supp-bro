@@ -1,59 +1,20 @@
 # Final Project Evals
 
-Цей шар оцінювання лежить у `scripts/final`, бо він перевіряє саме final SuppBro workflow, а не окрему домашню папку.
-
 ## Evaluation Flows
 
-| Flow | Що перевіряє | Output |
-|---|---|---|
-| Retrieval eval | Чи Pinecone dense search + local BM25 + RRF знаходять правильні chunks. | `scripts/final/outputs/eval_retrieval_results.md` |
-| Workflow regression eval | Чи final chatbot вибирає правильний route, викликає потрібні tools, коректно fallback-иться або питає clarification. | `scripts/final/outputs/eval_workflow_results.csv` |
-| RAGAS eval | Чи grounded-answer cases мають faithful/relevant answers і релевантний evidence. | `scripts/final/outputs/eval_ragas_results.csv` |
+| Flow                         | Що перевіряє | Output |
+|------------------------------|---|---|
+| Retrieval eval               | Чи Pinecone dense search + local BM25 + RRF знаходять правильні chunks. | `scripts/final/outputs/eval_retrieval_results.md` |
+| Deterministic eval | Чи final chatbot вибирає правильний route, викликає потрібні tools, коректно fallback-иться або питає clarification. | `scripts/final/outputs/eval_workflow_results.csv` |
+| RAGAS eval                   | Чи grounded-answer cases мають faithful/relevant answers і релевантний evidence. | `scripts/final/outputs/eval_ragas_results.csv` |
 
-## Manual GitHub Actions
 
-Обидва GitHub workflow запускаються тільки вручну через `workflow_dispatch`.
+### Retrieval Eval
 
-### Final Retrieval Eval
 
-```text
-Actions -> Final Retrieval Eval -> Run workflow
-```
 
-Цей action reuse-ить HW3 hybrid retrieval evaluator, але пише outputs у final project folder:
+### Deterministic  Eval
 
-```text
-scripts/final/outputs/eval_retrieval_results.json
-scripts/final/outputs/eval_retrieval_results.md
-```
-
-### Final Workflow Eval
-
-```text
-Actions -> Final Workflow Eval -> Run workflow
-```
-
-Це full end-to-end integration eval, а не unit/smoke test. GitHub Action запускає тільки deterministic workflow regression eval з увімкненим RAG і реальними tools для всіх test cases.
-
-RAG не можна вимкнути через workflow input або CLI flag. Єдиний runtime input — `min_vector_score`.
-
-Deterministic evaluator `scripts/final/evals/run_workflow_eval.py`:
-
-- читає `scripts/final/evals/eval_cases.json`;
-- запускає final LangGraph workflow з `enable_rag=True`;
-- збирає таблицю по всіх test cases;
-- перевіряє тільки те, що можна перевірити детерміновано: route, expected tools, clarification/fallback behavior, наявність answer;
-- не оцінює semantic quality, faithfulness або groundedness відповіді;
-- не запускає RAGAS.
-
-GitHub Actions job summary містить тільки deterministic test-case table. Action не запускає RAGAS і не публікує `eval_ragas_results.csv` як artifact.
-
-Основні outputs GitHub Action:
-
-```text
-scripts/final/outputs/eval_workflow_results.csv
-scripts/final/outputs/eval_summary.md
-```
 
 Deterministic summary показує тільки фактичні orchestration checks:
 
@@ -68,7 +29,7 @@ Errors
 
 `Success` є результатом hardcoded regression rules, а не LLM-as-judge оцінкою.
 
-## Local RAGAS Eval
+## RAGAS Eval
 
 RAGAS є окремим локальним flow:
 
@@ -78,34 +39,9 @@ make final-ragas-eval
 
 `run_ragas_eval.py` сам:
 
-- читає `scripts/final/evals/eval_cases.json`;
-- вибирає grounded-answer cases (`expected_route != clarification`);
-- запускає final LangGraph workflow для цих cases з `enable_rag=True`;
-- збирає фактичні answers, RAG contexts і external-tool evidence;
-- запускає RAGAS поверх цих даних;
-- записує результат у `scripts/final/outputs/eval_ragas_results.csv`.
 
-Deterministic і RAGAS eval-и незалежні та кожен сам запускає workflow для своїх cases. Окремий проміжний input-файл для RAGAS не потрібен.
 
-Результат локального RAGAS run можна закомітити в репозиторій як зафіксований evaluation result. RAGAS не запускається у GitHub Actions через нестабільну/повільну поведінку LLM-as-judge calls у hosted runner.
 
-RAGAS потребує `OPENAI_API_KEY`.
-
-## Local Commands
-
-Після `make setup`:
-
-```text
-make final-workflow-eval
-make final-ragas-eval
-```
-
-Це дві незалежні команди. За потреби обидві приймають однаковий retrieval threshold:
-
-```text
-make final-workflow-eval MIN_VECTOR_SCORE=0.30
-make final-ragas-eval MIN_VECTOR_SCORE=0.30
-```
 
 ## Eval Set
 
