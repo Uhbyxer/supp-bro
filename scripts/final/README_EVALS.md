@@ -2,11 +2,11 @@
 
 ## Evaluation Flows
 
-| Flow                         | Що перевіряє | Output |
-|------------------------------|---|---|
-| Retrieval eval               | Чи Pinecone dense search + local BM25 + RRF знаходять правильні chunks. | `scripts/final/outputs/eval_retrieval_results.md` |
-| Deterministic eval | Чи final chatbot вибирає правильний route, викликає потрібні tools, коректно fallback-иться або питає clarification. | `scripts/final/outputs/eval_workflow_results.csv` |
-| RAGAS eval                   | Чи grounded-answer cases мають faithful/relevant answers і релевантний evidence. | `scripts/final/outputs/eval_ragas_results.csv` |
+| Flow                         | Що перевіряє | Як запустити |
+|------------------------------|---|--------------|
+| Retrieval eval               | Чи Pinecone dense search + local BM25 + RRF знаходять правильні chunks. |              |
+| Deterministic eval | Чи final chatbot вибирає правильний route, викликає потрібні tools, коректно fallback-иться або питає clarification. |              |
+| RAGAS eval                   | Чи grounded-answer cases мають faithful/relevant answers і релевантний evidence. |              |
 
 
 ### Retrieval Eval
@@ -32,15 +32,6 @@ Errors
 ## RAGAS Eval
 
 RAGAS є окремим локальним flow:
-
-```text
-make final-ragas-eval
-```
-
-`run_ragas_eval.py` сам:
-
-
-
 
 
 ## Eval Set
