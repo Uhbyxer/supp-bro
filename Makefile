@@ -3,7 +3,7 @@ VENV ?= .venv
 PIP := $(VENV)/bin/pip
 PYTHON_BIN := $(VENV)/bin/python
 
-.PHONY: setup download-issues build-index semantic-search build-mongo-index mongo-semantic-search build-pinecone-index pinecone-semantic-search pinecone-retrieval-evaluation pinecone-hybrid-evaluation rag-answer hw5-external-tool hw6-agentic-workflow hw6-streamlit hw7-langgraph-workflow hw7-streamlit final-langgraph-workflow final-test final-streamlit final-workflow-eval final-ragas-eval
+.PHONY: setup download-issues build-index semantic-search build-mongo-index mongo-semantic-search build-pinecone-index pinecone-semantic-search pinecone-retrieval-evaluation pinecone-hybrid-evaluation rag-answer hw5-external-tool hw6-agentic-workflow hw6-streamlit hw7-langgraph-workflow hw7-streamlit final-langgraph-workflow final-test final-streamlit final-retrieval-eval final-workflow-eval final-ragas-eval
 setup:
 	$(PYTHON) -m venv $(VENV)
 	$(PYTHON_BIN) -m pip install --upgrade pip
@@ -63,6 +63,9 @@ final-test:
 
 final-streamlit:
 	$(PYTHON_BIN) -m streamlit run scripts/final/streamlit_app.py
+
+final-retrieval-eval:
+	PINECONE_HYBRID_JSON_PATH=scripts/final/outputs/eval_retrieval_results.json PINECONE_HYBRID_SUMMARY_PATH=scripts/final/outputs/eval_retrieval_results.md $(PYTHON_BIN) scripts/hw3/pinecone_hybrid_evaluation.py
 
 final-workflow-eval:
 	$(PYTHON_BIN) scripts/final/evals/run_workflow_eval.py $(if $(MIN_VECTOR_SCORE),--min-vector-score $(MIN_VECTOR_SCORE),)
