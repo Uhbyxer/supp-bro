@@ -1,6 +1,6 @@
 # Final project: route-aware SuppBro workflow
 
-Ця папка містить final project workflow. Він базується на HW7 `LangGraph` implementation, але лежить окремо від homework-папок і додає головне final-project покращення: workflow спочатку збирає evidence з local RAG, GitHub і Stack Overflow/community, а потім окремий `synthesize_answer` step може викликати модель для фінальної відповіді.
+Ця папка містить final project workflow. Він базується на HW7 `LangGraph` implementation і додає головне final-project покращення: workflow спочатку збирає evidence з local RAG, GitHub і Stack Overflow/community, а потім окремий `synthesize_answer` step може викликати модель для фінальної відповіді.
 
 ## Як Запускати
 
