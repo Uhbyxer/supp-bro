@@ -2,19 +2,54 @@
 
 ## Evaluation Flows
 
-| Flow                         | Що перевіряє | Як запустити |
-|------------------------------|---|--------------|
-| Retrieval eval               | Чи Pinecone dense search + local BM25 + RRF знаходять правильні chunks. |              |
-| Deterministic eval | Чи final chatbot вибирає правильний route, викликає потрібні tools, коректно fallback-иться або питає clarification. |              |
-| RAGAS eval                   | Чи grounded-answer cases мають faithful/relevant answers і релевантний evidence. |              |
-
+| Flow | Що перевіряє | Як запустити |
+|---|---|---|
+| Retrieval eval | Чи Pinecone dense search + local BM25 + RRF знаходять правильні chunks. | `make final-retrieval-eval` · [GitHub Action](https://github.com/Uhbyxer/supp-bro/actions/workflows/final-retrieval-eval.yml) |
+| Deterministic eval | Чи final chatbot вибирає правильний route, викликає потрібні tools, коректно fallback-иться або питає clarification. | `make final-workflow-eval` · [GitHub Action](https://github.com/Uhbyxer/supp-bro/actions/workflows/final-workflow-eval.yml) |
+| RAGAS eval | Чи grounded-answer cases мають faithful/relevant answers і релевантний evidence. | `make final-ragas-eval` · локально |
 
 ### Retrieval Eval
 
+Retrieval eval перевіряє якість пошуку **до генерації відповіді**. Поточний pipeline бере Top-15 кандидатів із Pinecone dense search і Top-15 із BM25, об'єднує rankings через RRF (`k=60`) і залишає final Top-5.
 
+Останній зафіксований run: [Final Retrieval Eval #1 — 33307280563](https://github.com/Uhbyxer/supp-bro/actions/runs/33307280563). Його результат також закомічений у [`scripts/final/outputs/eval_retrieval_results.md`](./outputs/eval_retrieval_results.md).
 
-### Deterministic  Eval
+#### Retrieval metrics
 
+Ground truth задає expected chunk IDs або patterns для кожного query. Після retrieval береться final Top-5 і рахуються:
+
+- **Top-1** — `1`, якщо перший retrieved chunk релевантний, інакше `0`. Aggregate Top-1 — середнє по всіх queries. Це найжорсткіша перевірка: **чи найкращий результат одразу правильний**.
+- **Hit@5** — `1`, якщо хоча б один релевантний chunk є серед Top-5, інакше `0`. Aggregate Hit@5 — середнє по queries. Ціль: **чи взагалі потрапив потрібний evidence у context window**.
+- **RR / MRR** — для одного query `RR = 1 / rank` першого релевантного chunk. Якщо він #1 → `1.0`, #2 → `0.5`, #3 → `0.333`; якщо релевантного chunk немає → `0`. Aggregate значення є **MRR** — середній RR по queries. Ціль: **наскільки високо система ставить перший правильний результат**.
+- **Precision@5** — `кількість релевантних chunks у Top-5 / 5`. Ціль: **наскільки Top-5 очищений від зайвого evidence**. Важливо: якщо ground truth містить лише один relevant chunk/pattern, максимальний Precision@5 для такого case може бути лише `1/5 = 20%`, тому цю метрику треба читати разом із кількістю expected chunks.
+
+Aggregate для зафіксованого run:
+
+| Metric | Result | Що означає |
+|---|---:|---|
+| Top-1 | **80%** | У 8 з 10 queries перший chunk збігся з ground truth. |
+| Hit@5 | **100%** | У всіх 10 queries хоча б один правильний chunk був у Top-5. |
+| MRR | **0.900** | Перший relevant result у середньому знаходиться дуже високо; два невдалі Top-1 cases мали relevant chunk на позиції #2. |
+| Precision@5 | **62%** | У середньому 3.1 із 5 результатів відповідають ground truth; значення залежить від того, скільки relevant chunks визначено для конкретного case. |
+
+#### Retrieval Results — Run 33307280563
+
+| Query | Expected chunks | Retrieved chunks | Top-1 | Hit@5 | RR | Precision@5 |
+|---|---|---|---:|---:|---:|---:|
+| How should Debezium persist connector offsets and schema history after a restart? | `storage:overview`, `kafka`, `file`, `jdbc`, `redis` | `file`, `kafka`, `issues:dbz:1407`, `overview`, `jdbc` | 100% | 100% | 1.000 | 80% |
+| Which storage options are suitable for cloud deployments of Debezium state? | `amazon_s3`, `azure_blob_storage`, `kafka` | `azure_blob_storage`, `memory`, `file`, `amazon_s3`, `overview` | 100% | 100% | 1.000 | 40% |
+| What is the difference between Kafka, file, and memory offset storage in Debezium? | `kafka`, `file`, `memory` | `memory`, `overview`, `file`, `kafka`, `azure_blob_storage` | 100% | 100% | 1.000 | 60% |
+| How does Debezium achieve exactly-once delivery with Kafka Connect? | `eos:overview`, `kafka_connect_exactly_once_support`, `configuration` | `connectors_supporting_eos`, `kafka_connect_exactly_once_support`, `overview`, `configuration`, `storage:overview` | 0% | 100% | 0.500 | 60% |
+| What must be configured before enabling exactly-once support for source connectors? | `configuration`, `kafka_connect_exactly_once_support` | `connectors_supporting_eos`, `kafka_connect_exactly_once_support`, `overview`, `issues:dbz:73`, `issues:dbz:1407` | 0% | 100% | 0.500 | 20% |
+| Postgres connector resumes from an old or invalid LSN after restart and replication slot validation looks wrong | `issues:dbz:1407:*` | 5 chunks from `issues:dbz:1407` | 100% | 100% | 1.000 | 100% |
+| Debezium connector crashes when two table columns have the same name except for letter case | `issues:dbz:4:*` | `dbz:4`, `dbz:73`, `dbz:4`, `dbz:1407`, `storage:jdbc` | 100% | 100% | 1.000 | 40% |
+| MongoDB connector backpressure error says unable to acquire buffer lock and queue is full | `issues:dbz:3:*` | 5 chunks from `issues:dbz:3` | 100% | 100% | 1.000 | 100% |
+| JDBC sink writes records in the correct topic order but batch processing causes foreign key violations | `issues:dbz:73:*` | 5 chunks from `issues:dbz:73` | 100% | 100% | 1.000 | 100% |
+| Which issue is only about migrating tests from JUnit4 to a newer JUnit version? | `issues:dbz:11:chunk_001` | `dbz:11`, `dbz:73`, `dbz:73`, `dbz:73`, `dbz:1407` | 100% | 100% | 1.000 | 20% |
+
+Загальний retrieval результат добрий: **Hit@5 = 100%**, тобто потрібний evidence не губиться. Основний простір для покращення — ranking/precision для documentation queries про exactly-once та cloud storage, де тематично близькі chunks іноді випереджають exact ground-truth chunk або додають шум у Top-5.
+
+### Deterministic Eval
 
 Deterministic summary показує тільки фактичні orchestration checks:
 
@@ -31,8 +66,7 @@ Errors
 
 ## RAGAS Eval
 
-RAGAS є окремим локальним flow:
-
+RAGAS є окремим локальним flow.
 
 ## Eval Set
 
