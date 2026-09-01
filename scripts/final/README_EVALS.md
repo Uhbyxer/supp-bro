@@ -124,8 +124,6 @@ Deterministic evaluation і RAGAS доповнюють один одного: п
 - **Deterministic GitHub Actions run:** https://github.com/Uhbyxer/supp-bro/actions/runs/33314524802
 - **Committed local RAGAS results:** https://github.com/Uhbyxer/supp-bro/blob/main/scripts/final/outputs/eval_ragas_results.csv
 
-Щоб аналіз було зручно читати без переходів між GitHub Action і CSV, ключові результати скопійовані нижче.
-
 ### Deterministic Results — Run 33314524802
 
 | # | Question | Expected | Actual | Success | Latency | Errors |
