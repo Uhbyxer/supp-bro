@@ -8,7 +8,7 @@
 |---|---|---|
 | Retrieval eval | Чи Pinecone dense search + local BM25 + RRF знаходять правильні chunks. | `scripts/final/outputs/eval_retrieval_results.md` |
 | Workflow regression eval | Чи final chatbot вибирає правильний route, викликає потрібні tools, коректно fallback-иться або питає clarification. | `scripts/final/outputs/eval_workflow_results.csv` |
-| RAGAS eval | Чи grounded-answer cases мають faithful/relevant answers і якісний evidence. | `scripts/final/outputs/eval_ragas_results.csv` |
+| RAGAS eval | Чи grounded-answer cases мають faithful/relevant answers і релевантний evidence. | `scripts/final/outputs/eval_ragas_results.csv` |
 
 ## Manual GitHub Actions
 
@@ -44,7 +44,7 @@ Deterministic evaluator `scripts/final/evals/run_workflow_eval.py`:
 - збирає таблицю по всіх test cases;
 - перевіряє тільки те, що можна перевірити детерміновано: route, expected tools, clarification/fallback behavior, наявність answer;
 - не оцінює semantic quality, faithfulness або groundedness відповіді;
-- не готує input і не запускає RAGAS.
+- не запускає RAGAS.
 
 GitHub Actions job summary містить тільки deterministic test-case table. Action не запускає RAGAS і не публікує `eval_ragas_results.csv` як artifact.
 
@@ -66,7 +66,7 @@ Latency
 Errors
 ```
 
-`Success` є результатом hardcoded regression rules, а не LLM-as-judge оцінкою. Semantic висновки не виводяться як synthetic `good/partial/bad` поля.
+`Success` є результатом hardcoded regression rules, а не LLM-as-judge оцінкою.
 
 ## Local RAGAS Eval
 
@@ -83,13 +83,9 @@ make final-ragas-eval
 - запускає final LangGraph workflow для цих cases з `enable_rag=True`;
 - збирає фактичні answers, RAG contexts і external-tool evidence;
 - запускає RAGAS поверх цих даних;
-- записує результат у:
+- записує результат у `scripts/final/outputs/eval_ragas_results.csv`.
 
-```text
-scripts/final/outputs/eval_ragas_results.csv
-```
-
-Проміжний `ragas_input.json` більше не потрібен. Deterministic і RAGAS eval-и незалежні та кожен сам запускає workflow для своїх cases.
+Deterministic і RAGAS eval-и незалежні та кожен сам запускає workflow для своїх cases. Окремий проміжний input-файл для RAGAS не потрібен.
 
 Результат локального RAGAS run можна закомітити в репозиторій як зафіксований evaluation result. RAGAS не запускається у GitHub Actions через нестабільну/повільну поведінку LLM-as-judge calls у hosted runner.
 
@@ -131,7 +127,9 @@ RAGAS selection is semantic rather than hardcoded by case ID: cases with `expect
 
 ## Metrics
 
-Workflow regression eval використовує deterministic checks поверх реального end-to-end execution. Вони не замінюють сам flow і не мокають RAG/tools:
+### Deterministic checks
+
+Workflow regression eval використовує deterministic checks поверх реального end-to-end execution:
 
 ```text
 expected_route == actual_route
@@ -140,9 +138,23 @@ unexpected clarification did not happen
 answer is not empty
 ```
 
-RAGAS eval оцінює answer quality поверх evidence, який він сам збирає у власному локальному workflow run. Для tool-augmented cases у contexts передаються не тільки RAG chunks, а й GitHub/Stack Overflow observations, щоб judge бачив повний evidence.
+Вони відповідають на питання: **чи система виконала правильний workflow?**
 
-Ці два eval-и доповнюють один одного: deterministic evaluation ловить orchestration/routing regressions, а RAGAS — answer-quality проблеми, які можуть залишатися невидимими навіть коли route і tools вибрані правильно.
+### RAGAS metrics
+
+RAGAS відповідає на інше питання: **наскільки якісна фактична відповідь, якщо дивитися на question, retrieved/tool evidence і reference?**
+
+У final eval використовуються три метрики, кожна в діапазоні приблизно `0..1`, де більше — краще:
+
+- **Faithfulness** — перевіряє, наскільки твердження у відповіді реально підтримуються переданим evidence/context. Високий score означає, що бот не додає непідтверджених фактів, рекомендацій або висновків. Це головна метрика для hallucination/over-interpretation проблем.
+- **Answer relevancy** — перевіряє, наскільки відповідь по суті відповідає на поставлене question. Високий score означає, що відповідь сфокусована на запиті, а не просто містить тематично близький текст.
+- **Context precision** — перевіряє, наскільки retrieved contexts, які були передані моделі, релевантні до question/reference. Високий score означає, що retrieval/tool layer приніс переважно корисний evidence; низький score часто вказує на retrieval/query/filtering problem ще до generation.
+
+Ціль цих трьох метрик — розділити різні типи проблем. Наприклад, `context_precision≈1.0` разом із низьким `faithfulness` означає: **evidence хороший, але бот погано ним скористався**. Низькі `answer_relevancy` і `context_precision` одночасно частіше означають, що проблема почалася ще на retrieval/community-search етапі.
+
+Для tool-augmented cases у contexts передаються не тільки RAG chunks, а й GitHub/Stack Overflow observations, щоб judge бачив повний evidence.
+
+Deterministic evaluation і RAGAS доповнюють один одного: перший ловить orchestration/routing regressions, другий — semantic answer-quality проблеми.
 
 ## Evaluation Snapshot Used For Conclusions
 
@@ -169,15 +181,17 @@ RAGAS eval оцінює answer quality поверх evidence, який він с
 
 ### RAGAS Results — Committed Local Run
 
-RAGAS запускається тільки для grounded-answer cases, тому clarification cases 5, 6, 7 і 9 тут відсутні.
+RAGAS запускається тільки для grounded-answer cases, тому clarification cases 5, 6, 7 і 9 тут відсутні. `Actual answer` — фактичний response бота з локального RAGAS run. `Expected answer` — reference/ground-truth expectation, з яким запускався evaluator.
 
-| # | Question | Faithfulness | Answer relevancy | Context precision |
-|---:|---|---:|---:|---:|
-| 1 | Can I get exactly once delivery with Debezium? | 0.750 | 0.795 | 0.917 |
-| 2 | Explain the known Debezium MongoDB buffer lock problem from the local context. | 0.571 | 0.882 | 1.000 |
-| 3 | What should I do if Debezium MongoDB says unable to acquire buffer lock? | 0.182 | 0.792 | 1.000 |
-| 4 | Debezium Mysql Connector Failed with IllegalStateException for history topic | 0.300 | 0.000 | 0.000 |
-| 8 | What is the recommended storage for Debezium schema history? | 0.000 | 0.901 | 0.917 |
+| # | Question | Actual answer | Expected answer | Faithfulness | Answer relevancy | Context precision |
+|---:|---|---|---|---:|---:|---:|
+| 1 | Can I get exactly once delivery with Debezium? | Yes, exactly-once delivery can be achieved when Debezium runs as a supported Kafka Connect source connector with Kafka Connect exactly-once support. | Debezium documentation should be used to answer whether exactly-once delivery is supported. | 0.750 | 0.795 | 0.917 |
+| 2 | Explain the known Debezium MongoDB buffer lock problem from the local context. | The warning `Unable to acquire buffer lock, buffer queue is likely full` was observed with Debezium MongoDB 3.2.5; the answer also suggests checking buffer settings/workload and points to the GitHub issue. | The answer should explain the MongoDB buffer lock issue using local issue context and GitHub issue evidence. | 0.571 | 0.882 | 1.000 |
+| 3 | What should I do if Debezium MongoDB says unable to acquire buffer lock? | The answer suggests checking/increasing buffer capacity, monitoring connector load and following the GitHub issue, while noting that no relevant community workaround was found. | The answer should mention the known MongoDB buffer lock symptom and include any available project/community evidence. | 0.182 | 0.792 | 1.000 |
+| 4 | Debezium Mysql Connector Failed with IllegalStateException for history topic | The answer reports insufficient local/project evidence and asks for connector logs, configuration and the exact `IllegalStateException` message instead of giving a confident fix. | The answer should use the community result for the MySQL history topic IllegalStateException without forcing a GitHub issue lookup. | 0.300 | 0.000 | 0.000 |
+| 8 | What is the recommended storage for Debezium schema history? | The answer says Debezium recommends `RocketMqSchemaHistory`, `MemorySchemaHistory`, `FileSchemaHistory` and `RedisSchemaHistory` depending on the use case. | The answer should use Debezium documentation about schema history storage. | 0.000 | 0.901 | 0.917 |
+
+> The table intentionally keeps the answers readable rather than duplicating the full raw retrieved-context payload. The complete response/context/reference fields remain available in `scripts/final/outputs/eval_ragas_results.csv`.
 
 ## Per-case Conclusions
 
