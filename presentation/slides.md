@@ -46,3 +46,52 @@ paginate: true
 - Збирає релевантний контекст із **documentation, GitHub issues та інших джерел**.
 
 > Support Bot не замінює Product team — він допомагає Support швидше зрозуміти проблему і правильно її маршрутизувати.
+
+---
+
+# POC Scope: Debezium
+
+Для POC використовуємо open-source **Debezium** як реальний продукт із публічною документацією та issue tracker.
+
+### Джерела знань
+
+- **Documentation** — [Debezium Reference Documentation](https://debezium.io/documentation/reference/stable/)
+- **Issue Tracker** — [Debezium GitHub Issues](https://github.com/debezium/dbz/issues)
+
+### Що беремо з них
+
+- Documentation: features, configuration, limitations, supported behavior.
+- Issues: bugs, known problems, workarounds, статуси та історія вирішення.
+
+> POC працює з реальними knowledge sources, але без внутрішніх корпоративних даних.
+
+---
+
+# Knowledge Ingestion
+
+Обидва джерела проходять однаковий ingestion flow:
+
+**Documentation / Issues → Chunking → Embeddings → Pinecone Index**
+
+- Великі сторінки та issues розбиваються на менші **chunks**.
+- Для кожного chunk створюється **embedding**.
+- Chunk + metadata зберігаються у **Pinecone** як searchable vector index.
+- Metadata дозволяє відрізняти **documentation** від **issues** і фільтрувати retrieval.
+- Під час запиту Support Bot шукає релевантні chunks і передає їх у RAG workflow.
+
+> Pinecone стає індексом знань, з якого бот дістає релевантний контекст для конкретного support request.
+
+[Детальніше: як тут працює RAG](https://github.com/Uhbyxer/supp-bro/blob/main/scripts/final/README.md#%D1%8F%D0%BA-%D1%82%D1%83%D1%82-%D0%BF%D1%80%D0%B0%D1%86%D1%8E%D1%94-rag)
+
+---
+
+# Загальний flow Support Bot
+
+![width:1000px](assets/bot-workflow.svg)
+
+- Спочатку бот визначає **тип запиту / route**.
+- Далі використовує потрібне джерело: **Documentation RAG, Issue RAG, GitHub або community search**.
+- Усі знайдені evidence збираються в `synthesize_answer`.
+- Фінальна відповідь формується вже з урахуванням усього доступного контексту.
+
+[Детальніше: Workflow Graph](https://github.com/Uhbyxer/supp-bro/blob/main/scripts/final/README.md#workflow-graph)

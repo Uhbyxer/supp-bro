@@ -42,6 +42,11 @@ jobs:
             -i presentation/team-routing.mmd \
             -o presentation/assets/team-routing.svg \
             -b transparent
+          npx --yes -p @mermaid-js/mermaid-cli@11.15.0 mmdc \
+            -p presentation/puppeteer-config.json \
+            -i presentation/bot-workflow.mmd \
+            -o presentation/assets/bot-workflow.svg \
+            -b transparent
 
       - name: Build Marp presentation
         run: |
