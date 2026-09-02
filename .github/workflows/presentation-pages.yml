@@ -34,6 +34,14 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Render Mermaid diagrams
+        run: |
+          mkdir -p presentation/assets
+          npx --yes -p @mermaid-js/mermaid-cli@11.15.0 mmdc \
+            -i presentation/team-routing.mmd \
+            -o presentation/assets/team-routing.svg \
+            -b transparent
+
       - name: Build Marp presentation
         run: |
           mkdir -p dist
