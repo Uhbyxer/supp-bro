@@ -55,7 +55,7 @@ paginate: true
 
 ### Джерела знань
 
-- **Documentation** — [Debezium Reference Documentation](https://debezium.io/documentation/)
+- **Documentation** — [Debezium Reference Documentation](https://debezium.io/documentation/reference/stable/)
 - **Issue Tracker** — [Debezium GitHub Issues](https://github.com/debezium/dbz/issues)
 
 ### Що беремо з них
@@ -80,3 +80,5 @@ paginate: true
 - Під час запиту Support Bot шукає релевантні chunks і передає їх у RAG workflow.
 
 > Pinecone стає індексом знань, з якого бот дістає релевантний контекст для конкретного support request.
+
+[Детальніше: як тут працює RAG](https://github.com/Uhbyxer/supp-bro/blob/main/scripts/final/README.md#%D1%8F%D0%BA-%D1%82%D1%83%D1%82-%D0%BF%D1%80%D0%B0%D1%86%D1%8E%D1%94-rag)
