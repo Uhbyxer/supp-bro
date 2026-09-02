@@ -24,6 +24,10 @@ paginate: true
 
 > Support потрібен швидкий спосіб зібрати релевантний контекст і зрозуміти, куди правильно маршрутизувати проблему.
 
-**Customer Team → Support → ? → Product Team**
+---
 
-`? = Bug / Configuration / Known Limitation / Ownership`
+# Де виникає bottleneck
+
+![width:1050px](assets/team-routing.svg)
+
+> Кілька customer teams сходяться в одну support team, яка має визначити причину проблеми та правильну product team.
