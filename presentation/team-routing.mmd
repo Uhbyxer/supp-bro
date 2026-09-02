@@ -1,0 +1,22 @@
+flowchart LR
+    subgraph C[Customer Teams]
+        C1[Customer Team A]
+        C2[Customer Team B]
+        C3[Customer Team C]
+    end
+
+    S[Support Team]
+
+    subgraph P[Product Teams]
+        P1[Product Team A]
+        P2[Product Team B]
+        P3[Product Team C]
+    end
+
+    C1 -->|Issue| S
+    C2 -->|Issue| S
+    C3 -->|Issue| S
+
+    S -->|Bug? Config? Ownership?| P1
+    S -->|Bug? Config? Ownership?| P2
+    S -->|Bug? Config? Ownership?| P3
