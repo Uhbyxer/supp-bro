@@ -82,3 +82,16 @@ paginate: true
 > Pinecone стає індексом знань, з якого бот дістає релевантний контекст для конкретного support request.
 
 [Детальніше: як тут працює RAG](https://github.com/Uhbyxer/supp-bro/blob/main/scripts/final/README.md#%D1%8F%D0%BA-%D1%82%D1%83%D1%82-%D0%BF%D1%80%D0%B0%D1%86%D1%8E%D1%94-rag)
+
+---
+
+# Загальний flow Support Bot
+
+![width:1000px](assets/bot-workflow.svg)
+
+- Спочатку бот визначає **тип запиту / route**.
+- Далі використовує потрібне джерело: **Documentation RAG, Issue RAG, GitHub або community search**.
+- Усі знайдені evidence збираються в `synthesize_answer`.
+- Фінальна відповідь формується вже з урахуванням усього доступного контексту.
+
+[Детальніше: Workflow Graph](https://github.com/Uhbyxer/supp-bro/blob/main/scripts/final/README.md#workflow-graph)
