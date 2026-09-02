@@ -1,0 +1,57 @@
+name: Deploy Presentation to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "presentation/**"
+      - ".github/workflows/presentation-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build Marp presentation
+        run: |
+          mkdir -p dist
+          npx --yes @marp-team/marp-cli@4.5.0 presentation/slides.md \
+            --output dist/index.html \
+            --bespoke.progress
+          if [ -d presentation/assets ]; then
+            cp -R presentation/assets dist/assets
+          fi
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
