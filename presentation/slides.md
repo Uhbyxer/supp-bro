@@ -4,94 +4,66 @@ theme: default
 paginate: true
 ---
 
-# Проблема
-
-### Контекст
-
-- **Product teams** мають глибокі знання про свої features.
-- **Support team** знає загальний продукт, але не всі implementation details.
-- **Customer teams** впроваджують продукт для конкретних клієнтів.
-
-### Проблема
-
-- Customer team відкриває issue, але причина часто неочевидна.
-- Незрозуміло: це **bug**, **configuration issue** чи **known limitation**.
-- Якщо це bug — незрозуміло, **яка product team повинна його розбирати**.
-- Support витрачає час на пошук документації, старих issues та схожих кейсів.
-- Product teams отримують багато запитів, які можна було б відфільтрувати раніше.
-
-### Ключова теза
-
-> Support потрібен швидкий спосіб зібрати релевантний контекст і зрозуміти, куди правильно маршрутизувати проблему.
-
----
-
-# Де виникає bottleneck
+# Контекст
 
 ![width:1050px](assets/team-routing.svg)
 
-> Кілька customer teams сходяться в одну support team, яка має визначити причину проблеми та правильну product team.
+**Кілька Customer teams → одна Support team → кілька Product teams**
+
+---
+
+# Проблема
+
+- Причина issue часто неочевидна.
+- **Bug / configuration / known limitation?**
+- Якщо bug — **яка Product team відповідає?**
+- Support шукає документацію, старі issues та схожі кейси.
+- Product teams отримують запити, які можна відфільтрувати раніше.
+
+> Support потрібен швидкий спосіб зібрати контекст і правильно маршрутизувати проблему.
 
 ---
 
 # Ідея: POC Support Bot
 
-- Допомагає Support team швидко увійти в **контекст проблеми**.
-- Розуміє, **які features зараз розробляються**.
-- Знає, **яка Product team / engineer відповідає за feature**.
-- Робить первинний **triage issue**.
-- Перевіряє, чи **схожа проблема вже була в іншого клієнта**.
-- Визначає: **bug / configuration issue / known limitation / already known issue**.
-- Підказує, чи проблему можна вирішити **зміною конфігурації без залучення Product team**.
-- Збирає релевантний контекст із **documentation, GitHub issues та інших джерел**.
+- Швидко збирає **контекст проблеми**.
+- Знає **активні features та ownership**.
+- Робить первинний **issue triage**.
+- Шукає **схожі кейси інших клієнтів**.
+- Визначає: **bug / config / limitation / known issue**.
+- Підказує, чи можна вирішити проблему **без Product team**.
 
-> Support Bot не замінює Product team — він допомагає Support швидше зрозуміти проблему і правильно її маршрутизувати.
+> Мета — швидше зрозуміти проблему і правильно її маршрутизувати.
 
 ---
 
 # POC Scope: Debezium
 
-Для POC використовуємо open-source **Debezium** як реальний продукт із публічною документацією та issue tracker.
+Open-source **Debezium** + 2 джерела знань:
 
-### Джерела знань
-
-- **Documentation** — [Debezium Reference Documentation](https://debezium.io/documentation/reference/stable/)
+- **Documentation** — [Debezium Docs](https://debezium.io/documentation/reference/stable/)
 - **Issue Tracker** — [Debezium GitHub Issues](https://github.com/debezium/dbz/issues)
 
-### Що беремо з них
-
-- Documentation: features, configuration, limitations, supported behavior.
-- Issues: bugs, known problems, workarounds, статуси та історія вирішення.
-
-> POC працює з реальними knowledge sources, але без внутрішніх корпоративних даних.
+**Docs:** features, configuration, limitations  
+**Issues:** bugs, known problems, workarounds
 
 ---
 
 # Knowledge Ingestion
 
-Обидва джерела проходять однаковий ingestion flow:
-
 **Documentation / Issues → Chunking → Embeddings → Pinecone Index**
 
-- Великі сторінки та issues розбиваються на менші **chunks**.
-- Для кожного chunk створюється **embedding**.
-- Chunk + metadata зберігаються у **Pinecone** як searchable vector index.
-- Metadata дозволяє відрізняти **documentation** від **issues** і фільтрувати retrieval.
-- Під час запиту Support Bot шукає релевантні chunks і передає їх у RAG workflow.
-
-> Pinecone стає індексом знань, з якого бот дістає релевантний контекст для конкретного support request.
-
-[Детальніше: як тут працює RAG](https://github.com/Uhbyxer/supp-bro/blob/main/scripts/final/README.md#%D1%8F%D0%BA-%D1%82%D1%83%D1%82-%D0%BF%D1%80%D0%B0%D1%86%D1%8E%D1%94-rag)
+- Контент розбивається на **chunks**.
+- Для chunks створюються **embeddings**.
+- Chunks + metadata зберігаються у **Pinecone**.
+- Bot дістає релевантний контекст через RAG.
 
 ---
 
-# Загальний flow Support Bot
+# Links
 
-![width:1000px](assets/bot-workflow.svg)
-
-- Спочатку бот визначає **тип запиту / route**.
-- Далі використовує потрібне джерело: **Documentation RAG, Issue RAG, GitHub або community search**.
-- Усі знайдені evidence збираються в `synthesize_answer`.
-- Фінальна відповідь формується вже з урахуванням усього доступного контексту.
-
-[Детальніше: Workflow Graph](https://github.com/Uhbyxer/supp-bro/blob/main/scripts/final/README.md#workflow-graph)
+- [Project README](https://github.com/Uhbyxer/supp-bro/blob/main/scripts/final/README.md)
+- [Workflow Graph](https://github.com/Uhbyxer/supp-bro/blob/main/scripts/final/README.md#workflow-graph)
+- [Як працює RAG](https://github.com/Uhbyxer/supp-bro/blob/main/scripts/final/README.md#%D1%8F%D0%BA-%D1%82%D1%83%D1%82-%D0%BF%D1%80%D0%B0%D1%86%D1%8E%D1%94-rag)
+- [Debezium Documentation](https://debezium.io/documentation/reference/stable/)
+- [Debezium Issue Tracker](https://github.com/debezium/dbz/issues)
