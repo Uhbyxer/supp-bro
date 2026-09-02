@@ -31,3 +31,18 @@ paginate: true
 ![width:1050px](assets/team-routing.svg)
 
 > Кілька customer teams сходяться в одну support team, яка має визначити причину проблеми та правильну product team.
+
+---
+
+# Ідея: POC Support Bot
+
+- Допомагає Support team швидко увійти в **контекст проблеми**.
+- Розуміє, **які features зараз розробляються**.
+- Знає, **яка Product team / engineer відповідає за feature**.
+- Робить первинний **triage issue**.
+- Перевіряє, чи **схожа проблема вже була в іншого клієнта**.
+- Визначає: **bug / configuration issue / known limitation / already known issue**.
+- Підказує, чи проблему можна вирішити **зміною конфігурації без залучення Product team**.
+- Збирає релевантний контекст із **documentation, GitHub issues та інших джерел**.
+
+> Support Bot не замінює Product team — він допомагає Support швидше зрозуміти проблему і правильно її маршрутизувати.
