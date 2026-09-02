@@ -38,6 +38,7 @@ jobs:
         run: |
           mkdir -p presentation/assets
           npx --yes -p @mermaid-js/mermaid-cli@11.15.0 mmdc \
+            -p presentation/puppeteer-config.json \
             -i presentation/team-routing.mmd \
             -o presentation/assets/team-routing.svg \
             -b transparent
