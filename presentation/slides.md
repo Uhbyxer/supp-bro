@@ -46,3 +46,37 @@ paginate: true
 - Збирає релевантний контекст із **documentation, GitHub issues та інших джерел**.
 
 > Support Bot не замінює Product team — він допомагає Support швидше зрозуміти проблему і правильно її маршрутизувати.
+
+---
+
+# POC Scope: Debezium
+
+Для POC використовуємо open-source **Debezium** як реальний продукт із публічною документацією та issue tracker.
+
+### Джерела знань
+
+- **Documentation** — [Debezium Reference Documentation](https://debezium.io/documentation/)
+- **Issue Tracker** — [Debezium GitHub Issues](https://github.com/debezium/dbz/issues)
+
+### Що беремо з них
+
+- Documentation: features, configuration, limitations, supported behavior.
+- Issues: bugs, known problems, workarounds, статуси та історія вирішення.
+
+> POC працює з реальними knowledge sources, але без внутрішніх корпоративних даних.
+
+---
+
+# Knowledge Ingestion
+
+Обидва джерела проходять однаковий ingestion flow:
+
+**Documentation / Issues → Chunking → Embeddings → Pinecone Index**
+
+- Великі сторінки та issues розбиваються на менші **chunks**.
+- Для кожного chunk створюється **embedding**.
+- Chunk + metadata зберігаються у **Pinecone** як searchable vector index.
+- Metadata дозволяє відрізняти **documentation** від **issues** і фільтрувати retrieval.
+- Під час запиту Support Bot шукає релевантні chunks і передає їх у RAG workflow.
+
+> Pinecone стає індексом знань, з якого бот дістає релевантний контекст для конкретного support request.
